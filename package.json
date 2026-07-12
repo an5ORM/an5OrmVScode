@@ -1,0 +1,57 @@
+{
+  "name": "mssql-orm-vscode",
+  "displayName": "MSSQL ORM Schema Tooling",
+  "description": "Syntax highlighting and formatting for .mssql schema files.",
+  "version": "1.0.1",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:mssql-schema"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mssql-schema",
+        "aliases": [
+          "MSSQL Schema",
+          "mssql-schema"
+        ],
+        "extensions": [
+          ".mssql"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mssql-schema",
+        "scopeName": "source.mssql-schema",
+        "path": "./syntaxes/mssql.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "mssql-schema",
+        "path": "./snippets/mssql-schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.60.0",
+    "typescript": "^6.0.3"
+  }
+}

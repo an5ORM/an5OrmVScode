@@ -1,0 +1,14 @@
+# Node
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+
+# VS Code extension build
+out/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MSSQL Schema",
+  "patterns": [
+    {
+      "name": "comment.line.description.mssql",
+      "match": "@@?description\\s*\\(\\s*\"([^\"\\\\]|\\\\.)*\"\\s*\\)"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#attributes"
+    },
+    {
+      "include": "#strings"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.mssql",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.mssql",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.mssql",
+          "match": "\\b(model|datasource|generator|enum|type)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.mssql",
+          "match": "(?i)\\b(String|Int|Integer|Boolean|Float|Double|DateTime|Date|Time|BigInt|Bytes|Decimal|Numeric|Money|SmallMoney|Byte|Short|Long|Vector|Json|Guid|UUID|Char|Varchar|NChar|NVarChar|VarBinary|Binary|Text|NText|Image|DateTime2|DateTimeOffset|SmallDateTime|Timestamp|UniqueIdentifier|Xml|Sql_Variant|SqlVariant|RowVersion|HierarchyId|Geography|Geometry|SysName|Bit|TinyInt|SmallInt|Real|Variant)\\b"
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "name": "entity.other.attribute-name.mssql",
+          "match": "@@?\\w+(\\.\\w+)?"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.mssql",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mssql",
+          "match": "\\\\."
+        }
+      ]
+    }
+  },
+  "scopeName": "source.mssql-schema"
+}

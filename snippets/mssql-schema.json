@@ -1,0 +1,132 @@
+{
+  "model": {
+    "prefix": "model",
+    "body": [
+      "model ${1:ModelName} {",
+      "  ${2:fieldName} ${3:String}",
+      "  ${4:fieldName2} ${5:Int}",
+      "}"
+    ],
+    "description": "Insert a new model block"
+  },
+  "field": {
+    "prefix": "field",
+    "body": [
+      "${1:fieldName} ${2:NVARCHAR(255)}"
+    ],
+    "description": "Insert a field definition"
+  },
+  "@id": {
+    "prefix": "@id",
+    "body": [
+      "@id"
+    ],
+    "description": "Mark field as primary key"
+  },
+  "@unique": {
+    "prefix": "@unique",
+    "body": [
+      "@unique"
+    ],
+    "description": "Mark field as unique"
+  },
+  "@default": {
+    "prefix": "@default",
+    "body": [
+      "@default(${1:value})"
+    ],
+    "description": "Set default value for a field"
+  },
+  "@default_now": {
+    "prefix": "@default(now",
+    "body": [
+      "@default(now())"
+    ],
+    "description": "Set default value to current timestamp"
+  },
+  "@default_uuid": {
+    "prefix": "@default(uuid",
+    "body": [
+      "@default(uuid())"
+    ],
+    "description": "Set default value to generated UUID"
+  },
+  "@relation": {
+    "prefix": "@relation",
+    "body": [
+      "@relation(\"${1:name}\", fields: [${2:id}], references: [${3:id}])"
+    ],
+    "description": "Define a relation between models"
+  },
+  "@updatedAt": {
+    "prefix": "@updatedAt",
+    "body": [
+      "@updatedAt"
+    ],
+    "description": "Auto-update timestamp on record change"
+  },
+  "@description": {
+    "prefix": "@description",
+    "body": [
+      "@description(\"${1:description}\")"
+    ],
+    "description": "Add description attribute to field"
+  },
+  "@@description": {
+    "prefix": "@@description",
+    "body": [
+      "@@description(\"${1:description}\")"
+    ],
+    "description": "Add block description attribute to model"
+  },
+  "@@map": {
+    "prefix": "@@map",
+    "body": [
+      "@@map(\"${1:table_name}\")"
+    ],
+    "description": "Map model to a different table name"
+  },
+  "@@unique": {
+    "prefix": "@@unique",
+    "body": [
+      "@@unique([${1:field1}, ${2:field2}])"
+    ],
+    "description": "Define a compound unique constraint"
+  },
+  "@@index": {
+    "prefix": "@@index",
+    "body": [
+      "@@index([${1:field1}, ${2:field2}])"
+    ],
+    "description": "Define a database index"
+  },
+  "enum": {
+    "prefix": "enum",
+    "body": [
+      "enum ${1:EnumName} {",
+      "  ${2:VALUE1}",
+      "  ${3:VALUE2}",
+      "}"
+    ],
+    "description": "Insert a new enum block"
+  },
+  "datasource": {
+    "prefix": "datasource",
+    "body": [
+      "datasource ${1:db} {",
+      "  provider = \"${2:sqlserver}\"",
+      "  url      = env(\"${3:DATABASE_URL}\")",
+      "}"
+    ],
+    "description": "Insert a datasource block"
+  },
+  "generator": {
+    "prefix": "generator",
+    "body": [
+      "generator ${1:client} {",
+      "  provider = \"${2:mssql-orm}\"",
+      "}"
+    ],
+    "description": "Insert a generator block"
+  }
+}
