@@ -1,0 +1,59 @@
+{
+  "name": "an5-orm-vscode",
+  "displayName": "AN5 ORM Schema Tooling",
+  "description": "Syntax highlighting and formatting for .an5 schema files.",
+  "version": "1.0.2",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:an5-schema"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "an5-schema",
+        "aliases": [
+          "AN5 Schema",
+          "an5-schema"
+        ],
+        "extensions": [
+          ".an5"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "an5-schema",
+        "scopeName": "source.an5-schema",
+        "path": "./syntaxes/an5.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "an5-schema",
+        "path": "./snippets/an5-schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js",
+    "package": "npx @vscode/vsce package --allow-package-secrets npm --allow-missing-repository --out release",
+    "publish": "npm run package && vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.60.0",
+    "typescript": "^6.0.3"
+  }
+}

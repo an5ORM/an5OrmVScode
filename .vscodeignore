@@ -1,0 +1,8 @@
+**
+!dist/**
+!snippets/**
+!syntaxes/**
+!language-configuration.json
+!changelog.md
+!readme.md
+!package.json
