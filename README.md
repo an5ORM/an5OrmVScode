@@ -1,6 +1,10 @@
 # an5OrmVScode
 
-VS Code extension for AN5 ORM schema files. Provides syntax highlighting, formatting, and snippets for `.an5` files.
+<p align="center">
+  <img src="icons/an5-128x128.png" width="96" height="96" alt="AN5 ORM Logo" />
+</p>
+
+VS Code extension for AN5 ORM schema files. Provides syntax highlighting, formatting, status bar commands, and tooling for `an5Orm.config.js` and `.an5` files.
 
 ## Features
 

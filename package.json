@@ -4,6 +4,7 @@
   "description": "Syntax highlighting and formatting for .an5 schema files.",
   "version": "1.0.1",
   "publisher": "antigravity",
+  "icon": "icons/an5-128x128.png",
   "engines": {
     "vscode": "^1.60.0"
   },
