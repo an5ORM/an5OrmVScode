@@ -12,7 +12,14 @@
     "Formatters"
   ],
   "activationEvents": [
-    "onLanguage:an5-schema"
+    "onLanguage:an5-schema",
+    "workspaceContains:an5Orm.config.js",
+    "workspaceContains:an5Orm.config.cjs",
+    "workspaceContains:**/*.an5",
+    "onCommand:an5.generate",
+    "onCommand:an5.push",
+    "onCommand:an5.pull",
+    "onCommand:an5.openConfig"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -26,6 +33,10 @@
         "extensions": [
           ".an5"
         ],
+        "icon": {
+          "light": "./icons/an5.svg",
+          "dark": "./icons/an5.svg"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
@@ -40,6 +51,32 @@
       {
         "language": "an5-schema",
         "path": "./snippets/an5-schema.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "an5.generate",
+        "title": "AN5: Generate Client Code",
+        "category": "AN5 ORM",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "an5.push",
+        "title": "AN5: Push Database Schema",
+        "category": "AN5 ORM",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "an5.pull",
+        "title": "AN5: Pull Database Schema",
+        "category": "AN5 ORM",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "an5.openConfig",
+        "title": "AN5: Open an5Orm Configuration File",
+        "category": "AN5 ORM",
+        "icon": "$(settings-gear)"
       }
     ]
   },

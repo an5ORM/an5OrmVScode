@@ -163,6 +163,131 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(formatter);
+
+  // --- AN5 ORM Configuration & Status Bar Tooling ---
+
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBarItem.command = 'an5.showMenu';
+
+  async function updateStatusBar() {
+    const configFiles = await vscode.workspace.findFiles('**/an5Orm.config.{js,cjs}', '**/node_modules/**', 1);
+    const schemaFiles = await vscode.workspace.findFiles('**/*.an5', '**/node_modules/**', 1);
+
+    if (configFiles.length > 0 || schemaFiles.length > 0) {
+      statusBarItem.text = '$(database) AN5 ORM';
+      statusBarItem.tooltip = 'AN5 ORM Tooling Active. Click for actions.';
+      statusBarItem.show();
+    } else {
+      statusBarItem.hide();
+    }
+  }
+
+  updateStatusBar();
+  context.subscriptions.push(statusBarItem);
+
+  // Command: Show QuickPick menu
+  const menuCommand = vscode.commands.registerCommand('an5.showMenu', async () => {
+    const items = [
+      { label: '$(gear) Generate Client Code', description: 'Run npm run generate / an5 generate', command: 'an5.generate' },
+      { label: '$(cloud-upload) Push Database Schema', description: 'Run npm run db:push / an5 push', command: 'an5.push' },
+      { label: '$(cloud-download) Pull Database Schema', description: 'Run npm run db:pull / an5 pull', command: 'an5.pull' },
+      { label: '$(settings-gear) Open Config File', description: 'Open or create an5Orm.config.js', command: 'an5.openConfig' },
+    ];
+    const selection = await vscode.window.showQuickPick(items, { placeHolder: 'AN5 ORM Commands' });
+    if (selection) {
+      vscode.commands.executeCommand(selection.command);
+    }
+  });
+  context.subscriptions.push(menuCommand);
+
+  // Command: Open or Create Config File
+  const openConfigCommand = vscode.commands.registerCommand('an5.openConfig', async () => {
+    const files = await vscode.workspace.findFiles('**/an5Orm.config.{js,cjs}', '**/node_modules/**', 1);
+    if (files.length > 0) {
+      const doc = await vscode.workspace.openTextDocument(files[0]);
+      await vscode.window.showTextDocument(doc);
+    } else {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder open to create an5Orm.config.js');
+        return;
+      }
+      const newConfigPath = vscode.Uri.joinPath(workspaceFolder.uri, 'an5Orm.config.js');
+      const defaultConfigContent = `/**
+ * AN5 ORM Configuration
+ */
+module.exports = {
+  schemaDir: 'an5Schema',
+  outputs: {
+    typescript: {
+      outputDir: 'an5Client/typescript',
+      metadataFile: 'an5Client/typescript/an5Metadata.ts',
+    },
+    python: {
+      metadataFile: 'an5Client/python/an5_metadata.py',
+    },
+    dotnet: {
+      outputDir: 'an5Client/dotnet',
+    },
+  },
+  pull: {
+    exclude: ['^__', '^sys\\\\.', '^igrations'],
+    preserveRelations: true,
+  },
+  generation: {
+    generateComments: true,
+    generateMetadata: true,
+  },
+};
+`;
+      await vscode.workspace.fs.writeFile(newConfigPath, new TextEncoder().encode(defaultConfigContent));
+      const doc = await vscode.workspace.openTextDocument(newConfigPath);
+      await vscode.window.showTextDocument(doc);
+      vscode.window.showInformationMessage('Created an5Orm.config.js in workspace root!');
+    }
+  });
+  context.subscriptions.push(openConfigCommand);
+
+  // Helper to run terminal command
+  function runAn5Command(cmdName: string, defaultNpmScript: string) {
+    const terminal = vscode.window.createTerminal(`AN5 ORM: ${cmdName}`);
+    terminal.show();
+    terminal.sendText(`npm run ${defaultNpmScript} || npx an5 ${cmdName}`);
+  }
+
+  context.subscriptions.push(vscode.commands.registerCommand('an5.generate', () => runAn5Command('generate', 'generate')));
+  context.subscriptions.push(vscode.commands.registerCommand('an5.push', () => runAn5Command('push', 'db:push')));
+  context.subscriptions.push(vscode.commands.registerCommand('an5.pull', () => runAn5Command('pull', 'db:pull')));
+
+  // Completion & Hover provider for an5Orm.config.js / cjs
+  const configSelector: vscode.DocumentFilter[] = [
+    { pattern: '**/an5Orm.config.js' },
+    { pattern: '**/an5Orm.config.cjs' }
+  ];
+
+  const configHoverProvider = vscode.languages.registerHoverProvider(configSelector, {
+    provideHover(document, position) {
+      const range = document.getWordRangeAtPosition(position);
+      const word = document.getText(range);
+
+      const docs: Record<string, string> = {
+        schemaDir: '**schemaDir**: Path to directory containing `.an5` schema files (default: `"an5Schema"`).',
+        outputs: '**outputs**: Targets for generated client artifacts (`typescript`, `python`, `dotnet`).',
+        typescript: '**typescript**: TypeScript client output directory and metadata path.',
+        python: '**python**: Python client metadata output path.',
+        dotnet: '**dotnet**: .NET (C#) client models output directory.',
+        pull: '**pull**: Settings for database schema reverse-engineering (`exclude`, `preserveRelations`).',
+        generation: '**generation**: Options for comments and metadata code generation.'
+      };
+
+      if (docs[word]) {
+        return new vscode.Hover(new vscode.MarkdownString(docs[word]));
+      }
+      return null;
+    }
+  });
+  context.subscriptions.push(configHoverProvider);
 }
 
 export function deactivate() {}
+

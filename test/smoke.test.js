@@ -8,5 +8,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 
 assert.ok(packageJson.contributes && packageJson.contributes.languages, 'Expected language contribution');
 assert.ok(fs.existsSync(path.join(root, 'syntaxes', 'an5.tmLanguage.json')), 'Expected grammar file');
 assert.ok(fs.existsSync(path.join(root, 'snippets', 'an5-schema.json')), 'Expected snippet file');
+assert.ok(fs.existsSync(path.join(root, 'icons', 'an5.svg')), 'Expected icon file');
+assert.ok(packageJson.contributes.commands && packageJson.contributes.commands.length >= 4, 'Expected commands contribution');
 
 console.log('an5OrmVScode smoke test passed');
