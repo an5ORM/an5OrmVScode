@@ -5,8 +5,8 @@
       <stop offset="100%" stop-color="#06B6D4" />
     </linearGradient>
   </defs>
-  <!-- AN5 Text Badge Container -->
+  <!-- AN5 Badge Container -->
   <rect x="2" y="2" width="20" height="20" rx="4" fill="url(#an5Grad)"/>
   <!-- AN5 Text -->
-  <text x="12" y="15.5" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="-0.5">AN5</text>
+  <text x="12" y="15.5" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="-0.5">AN5</text>
 </svg>
