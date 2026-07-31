@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- AN5 Text Badge Container -->
+  <rect x="5" y="5" width="54" height="54" rx="11" fill="#0F172A" stroke="#06B6D4" stroke-width="4"/>
+  <!-- AN5 Text -->
+  <text x="32" y="41.3" font-family="system-ui, -apple-system, sans-serif" font-size="24.3" font-weight="900" fill="#38BDF8" text-anchor="middle" letter-spacing="-0.5">AN5</text>
+</svg>

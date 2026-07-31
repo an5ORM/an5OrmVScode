@@ -84,11 +84,13 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "generate:icons": "node scripts/generate-icons.js",
     "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js"
   },
   "devDependencies": {
     "@types/node": "^16.18.126",
     "@types/vscode": "^1.60.0",
+    "sharp": "^0.35.3",
     "typescript": "^6.0.3"
   }
 }
