@@ -100,8 +100,14 @@ npm run watch
 # Run tests
 npm test
 
-# Package VSIX
-vsce package
+# Package VSIX bundle
+npm run package
+
+# Publish to VS Code Marketplace
+npm run publish:marketplace -- -p <VSCE_PAT_TOKEN>
+
+# Publish to Open VSX Registry
+npm run publish:openvsx -- -p <OVSX_PAT_TOKEN>
 ```
 
 ## Testing

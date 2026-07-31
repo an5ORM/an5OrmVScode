@@ -1,4 +1,4 @@
-name: CI and Release
+name: CI and Extension Release
 
 permissions:
   contents: write
@@ -10,9 +10,19 @@ on:
     branches: [main, master]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publish-marketplace:
+        description: 'Publish to VS Code Marketplace'
+        type: boolean
+        default: true
+      publish-openvsx:
+        description: 'Publish to Open VSX Registry'
+        type: boolean
+        default: true
 
 jobs:
   test:
+    name: Build & Test Extension
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,28 +30,41 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm run compile
+      - run: npm test
+      - run: npx @vscode/vsce package --no-dependencies
 
-  publish-npm:
+  publish:
+    name: Publish Extension
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
-      - run: npm ci
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  release:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: softprops/action-gh-release@v2
+      - name: Install dependencies
+        run: npm install
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --no-dependencies
+
+      - name: Publish to VS Code Marketplace
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish-marketplace == 'true'
+        run: npx @vscode/vsce publish -p ${{ secrets.VSCE_PAT }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX Registry
+        if: ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish-openvsx == 'true') && env.OVSX_PAT != ''
+        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }} || echo "Open VSX publish skipped"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Create GitHub Release & Upload VSIX Asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
+          files: '*.vsix'
           generate_release_notes: true

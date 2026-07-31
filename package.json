@@ -3,7 +3,13 @@
   "displayName": "AN5 ORM Schema Tooling",
   "description": "Syntax highlighting and formatting for .an5 schema files.",
   "version": "1.0.1",
-  "publisher": "antigravity",
+  "publisher": "an5orm",
+  "author": "an5ORM",
+  "homepage": "https://github.com/an5ORM/an5OrmVScode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/an5ORM/an5OrmVScode.git"
+  },
   "icon": "icons/an5-128x128.png",
   "engines": {
     "vscode": "^1.60.0"
@@ -86,11 +92,16 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "generate:icons": "node scripts/generate-icons.js",
-    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js"
+    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js",
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "publish:marketplace": "npx @vscode/vsce publish --no-dependencies",
+    "publish:openvsx": "npx ovsx publish"
   },
   "devDependencies": {
     "@types/node": "^16.18.126",
     "@types/vscode": "^1.60.0",
+    "@vscode/vsce": "^3.2.1",
+    "ovsx": "^0.9.1",
     "sharp": "^0.35.3",
     "typescript": "^6.0.3"
   }
