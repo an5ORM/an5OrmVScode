@@ -174,7 +174,7 @@ export function activate(context: vscode.ExtensionContext) {
     const schemaFiles = await vscode.workspace.findFiles('**/*.an5', '**/node_modules/**', 1);
 
     if (configFiles.length > 0 || schemaFiles.length > 0) {
-      statusBarItem.text = '$(database) AN5 ORM';
+      statusBarItem.text = 'AN5 ORM';
       statusBarItem.tooltip = 'AN5 ORM Tooling Active. Click for actions.';
       statusBarItem.show();
     } else {

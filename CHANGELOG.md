@@ -2,7 +2,7 @@
 
 ## [1.0.2] - 2026-07-31
 
-- chore: update build, misc
+- chore: update misc
 
 ## [1.0.1] - 2026-07-05
 
