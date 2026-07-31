@@ -16,18 +16,11 @@ if (!fs.existsSync(ICONS_DIR)) {
 }
 
 function generateSvg(size) {
-  const padding = Math.max(1, Math.round(size * 0.083));
-  const innerSize = size - padding * 2;
-  const rx = Math.max(1, Math.round(size * 0.166));
-  const strokeWidth = Math.max(1, (size * 0.0625).toFixed(1));
-  const fontSize = (size * 0.38).toFixed(1);
-  const yPos = (size * 0.645).toFixed(1);
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${size}" height="${size}">
   <!-- AN5 Text Badge Container -->
-  <rect x="${padding}" y="${padding}" width="${innerSize}" height="${innerSize}" rx="${rx}" fill="#0F172A" stroke="#06B6D4" stroke-width="${strokeWidth}"/>
+  <rect x="8" y="8" width="84" height="84" rx="16" fill="#0F172A" stroke="#06B6D4" stroke-width="6"/>
   <!-- AN5 Text -->
-  <text x="${size / 2}" y="${yPos}" font-family="system-ui, -apple-system, sans-serif" font-size="${fontSize}" font-weight="900" fill="#38BDF8" text-anchor="middle" letter-spacing="-0.5">AN5</text>
+  <text x="50" y="62" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="900" fill="#38BDF8" text-anchor="middle">AN5</text>
 </svg>
 `;
 }
