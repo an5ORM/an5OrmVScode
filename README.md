@@ -17,7 +17,7 @@ VS Code extension for AN5 ORM schema files. Provides syntax highlighting, format
 ### From VSIX
 
 ```bash
-code --install-extension an5-orm-vscode-1.0.1.vsix
+code --install-extension an5-orm-vscode-1.0.2.vsix
 ```
 
 ### From Source
