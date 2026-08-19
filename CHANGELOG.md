@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.3] - 2026-08-19
+
+- chore: update build
+
 ## [1.0.2] - 2026-08-19
 
 - chore: update official AN5 gradient badge icon styling across all sizes
@@ -13,3 +17,4 @@
 ## [1.0.0] - 2026-07-04
 
 - Initial release
+

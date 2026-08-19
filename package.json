@@ -103,6 +103,6 @@
     "@vscode/vsce": "^3.2.1",
     "ovsx": "^0.9.1",
     "sharp": "^0.35.3",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
