@@ -5,10 +5,12 @@ build/
 *.tsbuildinfo
 npm-debug.log*
 
-# VS Code extension build
+# VS Code package
+*.vsix
 out/
 
 # OS/editor
 .DS_Store
 .vscode/
 .idea/
+
