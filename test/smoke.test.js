@@ -10,5 +10,7 @@ assert.ok(fs.existsSync(path.join(root, 'syntaxes', 'an5.tmLanguage.json')), 'Ex
 assert.ok(fs.existsSync(path.join(root, 'snippets', 'an5-schema.json')), 'Expected snippet file');
 assert.ok(fs.existsSync(path.join(root, 'icons', 'an5.svg')), 'Expected icon file');
 assert.ok(packageJson.contributes.commands && packageJson.contributes.commands.length >= 4, 'Expected commands contribution');
+assert.ok(packageJson.contributes.mcpServerDefinitionProviders, 'Expected MCP server definition provider');
+assert.ok(fs.existsSync(path.join(root, 'dist', 'mcp', 'server.js')), 'Expected compiled MCP server');
 
 console.log('an5OrmVScode smoke test passed');

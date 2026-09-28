@@ -1,6 +1,7 @@
 .vscode/**
 .github/**
 src/**
+dist/**/*.map
 test/**
 tsconfig.json
 *.vsix

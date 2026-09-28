@@ -1,4 +1,11 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
+
+/** Id must match `contributes.mcpServerDefinitionProviders[].id` in package.json. */
+const MCP_PROVIDER_ID = 'an5McpProvider';
+const MCP_SERVER_LABEL = 'AN5 ORM';
+/** Must match `version` in package.json. */
+const MCP_SERVER_VERSION = '1.0.2';
 
 interface FieldDef {
   name: string;
@@ -287,6 +294,102 @@ module.exports = {
     }
   });
   context.subscriptions.push(configHoverProvider);
+
+  // --- MCP server for agentic clients (GitHub Copilot, etc.) ----------------
+  //
+  // The server is a stdio MCP server shipped with this extension. It is started
+  // as a child process with the first workspace folder as its working directory
+  // so it discovers the project's schema, @an5/orm install and DATABASE_URL.
+
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (workspaceRoot) {
+    registerMcpServer(context, workspaceRoot);
+  }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('an5.mcp.showConfig', async () => {
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (!folder) {
+        vscode.window.showErrorMessage('Open a folder before inspecting the AN5 MCP server configuration.');
+        return;
+      }
+      const serverPath = vscode.Uri.joinPath(context.extensionUri, 'dist', 'mcp', 'server.js').fsPath;
+      const config = {
+        servers: {
+          'an5-orm': {
+            type: 'stdio',
+            command: 'node',
+            args: [serverPath],
+            cwd: folder.fsPath,
+          },
+        },
+      };
+      const document = await vscode.workspace.openTextDocument({
+        language: 'json',
+        content: JSON.stringify(config, null, 2),
+      });
+      await vscode.window.showTextDocument(document);
+    }),
+  );
+}
+
+/**
+ * Registers the AN5 MCP server with VS Code so agentic clients discover it.
+ *
+ * The API is only present on newer VS Code builds; when it is missing the
+ * extension still works and the `AN5: Show MCP Server Configuration` command
+ * provides the snippet to paste into `.vscode/mcp.json` by hand.
+ */
+function registerMcpServer(context: vscode.ExtensionContext, workspaceRoot: vscode.Uri): void {
+  const lm = vscode.lm as { registerMcpServerDefinitionProvider?: unknown };
+  if (typeof lm.registerMcpServerDefinitionProvider !== 'function') {
+    return;
+  }
+
+  const serverPath = vscode.Uri.joinPath(context.extensionUri, 'dist', 'mcp', 'server.js').fsPath;
+  const emitter = new vscode.EventEmitter<void>();
+
+  // `as never` keeps this compiling against the ^1.60 @types/vscode the
+  // extension is built with, where the MCP provider API is not declared yet.
+  const register = vscode.lm.registerMcpServerDefinitionProvider as unknown as (
+    id: string,
+    provider: unknown,
+  ) => vscode.Disposable;
+
+  context.subscriptions.push(emitter);
+  context.subscriptions.push(
+    register(MCP_PROVIDER_ID, {
+      onDidChangeMcpServerDefinitions: emitter.event,
+      provideMcpServerDefinitions: async () => {
+        const StdioDefinition = (
+          vscode as unknown as {
+            McpStdioServerDefinition: new (options: {
+              label: string;
+              command: string;
+              args?: string[];
+              cwd?: vscode.Uri;
+              version?: string;
+            }) => unknown;
+          }
+        ).McpStdioServerDefinition;
+
+        if (typeof StdioDefinition !== 'function') {
+          return [];
+        }
+
+        return [
+          new StdioDefinition({
+            label: MCP_SERVER_LABEL,
+            command: 'node',
+            args: [serverPath],
+            cwd: workspaceRoot,
+            version: MCP_SERVER_VERSION,
+          }),
+        ];
+      },
+      resolveMcpServerDefinition: async (definition: vscode.McpServerDefinition) => definition,
+    }),
+  );
 }
 
 export function deactivate() {}

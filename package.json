@@ -12,7 +12,7 @@
   },
   "icon": "icons/an5-128x128.png",
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.101.0"
   },
   "categories": [
     "Programming Languages",
@@ -26,7 +26,8 @@
     "onCommand:an5.generate",
     "onCommand:an5.push",
     "onCommand:an5.pull",
-    "onCommand:an5.openConfig"
+    "onCommand:an5.openConfig",
+    "onCommand:an5.mcp.showConfig"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -84,6 +85,18 @@
         "title": "AN5: Open an5Orm Configuration File",
         "category": "AN5 ORM",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "an5.mcp.showConfig",
+        "title": "AN5: Show MCP Server Configuration",
+        "category": "AN5 ORM",
+        "icon": "$(robot)"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "an5McpProvider",
+        "label": "AN5 ORM"
       }
     ]
   },
@@ -92,10 +105,12 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "generate:icons": "node scripts/generate-icons.js",
-    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js",
+    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js && node test/mcp.test.js",
     "package": "npx @vscode/vsce package --no-dependencies",
     "publish:marketplace": "npx @vscode/vsce publish --no-dependencies",
-    "publish:openvsx": "npx ovsx publish"
+    "publish:openvsx": "npx ovsx publish",
+    "build": "tsc -p ./",
+    "pretest": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^16.18.126",
