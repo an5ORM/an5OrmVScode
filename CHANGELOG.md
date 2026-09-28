@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.3] - 2026-09-28
 
 - feat(mcp): ship a Model Context Protocol server so GitHub Copilot and other
   agentic clients can explore the AN5 schema, run read-only queries and drive
@@ -10,10 +10,6 @@
   hand-written `mcp.json` entry.
 - BREAKING: raise the minimum VS Code version to 1.101, which is where
   `vscode.lm.registerMcpServerDefinitionProvider` is available.
-
-## [1.0.3] - 2026-08-19
-
-- chore: update build
 
 ## [1.0.2] - 2026-08-19
 

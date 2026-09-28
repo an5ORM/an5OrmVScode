@@ -2,7 +2,7 @@
   "name": "an5-orm-vscode",
   "displayName": "AN5 ORM Schema Tooling",
   "description": "Syntax highlighting and formatting for .an5 schema files.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "an5orm",
   "author": "an5ORM",
   "homepage": "https://github.com/an5ORM/an5OrmVScode",
@@ -119,5 +119,6 @@
     "ovsx": "^0.9.1",
     "sharp": "^0.35.3",
     "typescript": "^7.0.2"
-  }
+  },
+  "license": "MIT"
 }
