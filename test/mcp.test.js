@@ -164,10 +164,11 @@ console.log('\nSchema reader:');
 const { parseSchemaFiles, analyzeSchema } = require(path.join(distDir, 'schema-reader.js'));
 
 const schemaText = `model User {
-  id       NVARCHAR(1000) @id @default(uuid())
-  email    NVARCHAR(255) @unique
-  posts    Post[]
+  id       NVARCHAR(1000) @id @default(uuid()) @description("Primary key")
+  email    NVARCHAR(255) @unique @description("Login email")
+  posts    Post[] @description("Everything the user wrote")
   @@map("users")
+  @@description("A registered user")
 }
 
 model Post {
@@ -197,6 +198,15 @@ test('resolves relation keys across both sides', () => {
   assert.strictEqual(posts.isArray, true);
   assert.strictEqual(posts.foreignKey, 'authorId');
   assert.strictEqual(posts.localKey, 'id');
+});
+
+test('keeps @description on fields, relations and models', () => {
+  const models = parseSchemaFiles([{ path: 'user.an5', contents: schemaText }]);
+  const user = models.find((m) => m.name === 'User');
+  assert.strictEqual(user.description, 'A registered user');
+  assert.strictEqual(user.fields.find((f) => f.name === 'id').description, 'Primary key');
+  assert.strictEqual(user.fields.find((f) => f.name === 'email').description, 'Login email');
+  assert.strictEqual(user.relations.find((r) => r.name === 'posts').description, 'Everything the user wrote');
 });
 
 test('analyzeSchema flags missing primary keys and unindexed foreign keys', () => {
@@ -241,6 +251,29 @@ test('lists models from the workspace it is started in', () => {
   assert.strictEqual(call.result.isError, false);
   const payload = JSON.parse(call.result.content[0].text);
   assert.strictEqual(payload.totalModels, 2);
+});
+
+test('surfaces the relation description through the schema tools', () => {
+  const responses = runServer([
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'an5_describe_model', arguments: { model: 'User' } },
+    },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'an5_get_relations', arguments: {} } },
+  ]);
+
+  const described = JSON.parse(responses.find((r) => r.id === 1).result.content[0].text);
+  assert.strictEqual(described.description, 'A registered user');
+  assert.strictEqual(described.fields.find((f) => f.name === 'email').description, 'Login email');
+  assert.strictEqual(described.relations[0].description, 'Everything the user wrote');
+
+  const graph = JSON.parse(responses.find((r) => r.id === 2).result.content[0].text);
+  assert.ok(
+    graph.relations.some((r) => r.description === 'Everything the user wrote'),
+    'get_relations must include relation descriptions',
+  );
 });
 
 test('rejects a mutating call that omits confirm', () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.4] - 2026-09-28
+
+- fix(mcp): keep `@description` on relations. The schema reader captured
+  descriptions on models and fields but dropped the one declared on a relation
+  line, so `an5_describe_model` and `an5_get_relations` lost that text.
+
 ## [1.0.3] - 2026-09-28
 
 - feat(mcp): ship a Model Context Protocol server so GitHub Copilot and other

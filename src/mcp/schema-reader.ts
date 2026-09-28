@@ -26,6 +26,8 @@ export interface An5Relation {
   isOptional: boolean;
   foreignKey?: string;
   localKey?: string;
+  /** From a trailing `@description("...")` on the relation line. */
+  description?: string;
 }
 
 export interface An5Model {
@@ -111,7 +113,8 @@ function parseModelBlock(name: string, body: string[], sourceFile: string): An5M
     const isOptional = rawType.endsWith('?');
     const baseType = rawType.replace('[]', '').replace('?', '');
     const attributes = line.split(/\s+/).slice(2);
-    const descriptionMatch2 = line.match(/@description\("(.+)"\)/);
+    // A description can sit on a field or on a relation, so read it once here.
+    const lineDescription = line.match(/@description\("(.+)"\)/)?.[1];
 
     if (!SQL_TYPE.test(baseType)) {
       model.relations.push({
@@ -121,6 +124,7 @@ function parseModelBlock(name: string, body: string[], sourceFile: string): An5M
         isOptional,
         foreignKey: line.match(/fields:\s*\[(\w+)\]/)?.[1],
         localKey: line.match(/references:\s*\[(\w+)\]/)?.[1],
+        ...(lineDescription ? { description: lineDescription } : {}),
       });
       continue;
     }
@@ -133,7 +137,7 @@ function parseModelBlock(name: string, body: string[], sourceFile: string): An5M
       isUnique: attributes.includes('@unique'),
       hasDefault: attributes.some((a) => a.startsWith('@default')),
       attributes,
-      ...(descriptionMatch2?.[1] ? { description: descriptionMatch2[1] } : {}),
+      ...(lineDescription ? { description: lineDescription } : {}),
     });
   }
 

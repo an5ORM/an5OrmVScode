@@ -150,6 +150,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
             kind: r.isArray ? 'one-to-many' : 'many-to-one',
             foreignKey: r.foreignKey,
             localKey: r.localKey,
+            description: r.description,
           })),
         });
       },
@@ -171,6 +172,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
             kind: r.isArray ? 'one-to-many' : 'many-to-one',
             foreignKey: r.foreignKey,
             localKey: r.localKey,
+            description: r.description,
           })),
         );
         return json({ totalRelations: edges.length, relations: edges });
