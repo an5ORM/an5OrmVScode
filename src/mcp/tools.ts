@@ -11,7 +11,7 @@ import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { McpTool } from './protocol';
-import { analyzeSchema, parseSchemaFiles, An5Model } from './schema-reader';
+import { analyzeSchema, loadSchemaModels } from './schema-reader';
 import { resolveWorkspace, Workspace } from './workspace';
 
 const CONFIRM_HELP =
@@ -19,18 +19,6 @@ const CONFIRM_HELP =
 
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
-}
-
-/** Reads and parses every `.an5` file in the workspace. */
-function loadModels(ws: Workspace): An5Model[] {
-  if (ws.schemaFiles.length === 0) {
-    throw new Error(
-      `No .an5 schema files found under "${ws.root}". Create an ${ws.config.schemaDir ? `"${String(ws.config.schemaDir)}"` : '"an5Schema"'} directory or run "AN5: Generate Client Code" from an existing schema.`,
-    );
-  }
-  return parseSchemaFiles(
-    ws.schemaFiles.map((file) => ({ path: file, contents: fs.readFileSync(file, 'utf8') })),
-  );
 }
 
 /** Runs an npm script from the installed `@an5/orm` and captures its output. */
@@ -97,7 +85,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'List AN5 models', ...readOnly },
       async handler() {
-        const models = loadModels(resolve());
+        const models = await loadSchemaModels();
         return json({
           schemaDir: path.relative(resolve().root, resolve().schemaDir) || '.',
           totalModels: models.length,
@@ -124,7 +112,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       annotations: { title: 'Describe an AN5 model', ...readOnly },
       async handler(args) {
         const name = String(args.model);
-        const models = loadModels(resolve());
+        const models = await loadSchemaModels();
         const model = models.find((m) => m.name.toLowerCase() === name.toLowerCase());
         if (!model) {
           throw new Error(
@@ -163,7 +151,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'Get AN5 relations', ...readOnly },
       async handler() {
-        const models = loadModels(resolve());
+        const models = await loadSchemaModels();
         const edges = models.flatMap((model) =>
           model.relations.map((r) => ({
             from: model.name,
@@ -186,7 +174,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'Analyze AN5 schema', ...readOnly },
       async handler() {
-        return json(analyzeSchema(loadModels(resolve())));
+        return json(analyzeSchema(await loadSchemaModels()));
       },
     },
 
@@ -262,7 +250,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       annotations: { title: 'Describe an AN5 table', ...readOnly },
       async handler(args) {
         const table = String(args.table);
-        const models = loadModels(resolve());
+        const models = await loadSchemaModels();
         const model = models.find(
           (m) =>
             m.name.toLowerCase() === table.toLowerCase() ||

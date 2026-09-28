@@ -62,7 +62,7 @@ test('requires a VS Code version that ships the MCP API', () => {
 });
 
 test('ships the compiled MCP server', () => {
-  for (const file of ['server.js', 'protocol.js', 'tools.js', 'workspace.js', 'schema-reader.js']) {
+  for (const file of ['server.js', 'protocol.js', 'tools.js', 'workspace.js', 'schema-reader.js', 'fallback-parser.js']) {
     assert.ok(fs.existsSync(path.join(distDir, file)), `Expected dist/mcp/${file}`);
   }
   const ignore = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8');
@@ -159,9 +159,9 @@ test('argument validation reports missing and mistyped parameters', () => {
 
 // ─── Schema reader ────────────────────────────────────────────────────────────
 
-console.log('\nSchema reader:');
+console.log('\nFallback schema reader (used when @an5/orm is not installed):');
 
-const { parseSchemaFiles, analyzeSchema } = require(path.join(distDir, 'schema-reader.js'));
+const { parseSchemaFiles, analyzeSchema } = require(path.join(distDir, 'fallback-parser.js'));
 
 const schemaText = `model User {
   id       NVARCHAR(1000) @id @default(uuid()) @description("Primary key")
