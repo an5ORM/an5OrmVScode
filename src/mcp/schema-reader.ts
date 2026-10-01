@@ -13,13 +13,27 @@ import { resolveWorkspace } from './workspace';
 
 export type { An5Field, An5Model, An5Relation };
 
+/**
+ * The slice of `@an5/orm`'s generator API this file uses.
+ *
+ * Spelled out here rather than as `typeof import('@an5/orm/generator')`. The
+ * ORM is located in the workspace at runtime and is deliberately not a
+ * dependency of this extension, so a type-level import of it would make `tsc`
+ * fail in any checkout without a sibling an5Orm — including this repository's
+ * own CI, which checks out an5OrmVScode alone. The runtime lookup already
+ * degrades to the fallback parser; the types should not be stricter than that.
+ */
+interface GeneratorApi {
+  SchemaParser: new (schemaDir: string) => { parse(): Promise<unknown> };
+}
+
 /** Loads the shared generator when the workspace provides it. */
-function loadGenerator(): typeof import('@an5/orm/generator') | null {
+function loadGenerator(): GeneratorApi | null {
   const ws = resolveWorkspace();
   if (!ws.ormDir) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require(ws.ormDir)['./dist/generator/src/api.js'];
+    return require(ws.ormDir)['./dist/generator/src/api.js'] as GeneratorApi;
   } catch {
     return null;
   }
