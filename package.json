@@ -19,15 +19,9 @@
     "Formatters"
   ],
   "activationEvents": [
-    "onLanguage:an5-schema",
     "workspaceContains:an5Orm.config.js",
     "workspaceContains:an5Orm.config.cjs",
-    "workspaceContains:**/*.an5",
-    "onCommand:an5.generate",
-    "onCommand:an5.push",
-    "onCommand:an5.pull",
-    "onCommand:an5.openConfig",
-    "onCommand:an5.mcp.showConfig"
+    "workspaceContains:**/*.an5"
   ],
   "main": "./dist/extension.js",
   "contributes": {

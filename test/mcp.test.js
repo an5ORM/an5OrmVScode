@@ -54,7 +54,10 @@ test('the provider id matches the one registered in the extension', () => {
 test('declares an MCP configuration command', () => {
   const commands = packageJson.contributes.commands.map((c) => c.command);
   assert.ok(commands.includes('an5.mcp.showConfig'));
-  assert.ok(packageJson.activationEvents.includes('onCommand:an5.mcp.showConfig'));
+});
+
+test('relies on inferred activation events for its commands', () => {
+  assert.ok(!packageJson.activationEvents.some((e) => e.startsWith('onCommand:')));
 });
 
 test('requires a VS Code version that ships the MCP API', () => {
