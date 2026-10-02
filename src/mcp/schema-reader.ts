@@ -24,7 +24,9 @@ export type { An5Field, An5Model, An5Relation };
  * degrades to the fallback parser; the types should not be stricter than that.
  */
 interface GeneratorApi {
-  SchemaParser: new (schemaDir: string) => { parse(): Promise<unknown> };
+  SchemaParser: new (schemaDir: string, provider?: string) => { parse(): Promise<unknown> };
+  /** Resolves the provider from the project's config; absent before it existed. */
+  providerForProject?: (cwd?: string) => string;
 }
 
 /** Loads the shared generator when the workspace provides it. */
@@ -55,7 +57,11 @@ export async function loadSchemaModels(): Promise<An5Model[]> {
 
   const generator = loadGenerator();
   if (generator) {
-    const models = await new generator.SchemaParser(ws.schemaDir).parse();
+    // The ORM validates field types per provider. Without this, a schema written
+    // for PostgreSQL or SQLite is read as SQL Server and every other MCP tool
+    // reports it as broken.
+    const provider = generator.providerForProject?.(ws.root);
+    const models = await new generator.SchemaParser(ws.schemaDir, provider).parse();
     return models as unknown as An5Model[];
   }
 
