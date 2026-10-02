@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.5] - 2026-10-02
+
+### Fixed
+- **A workspace schema for PostgreSQL or SQLite was reported as broken** — `@an5/orm`
+  validates field types per provider and defaults to SQL Server when none is passed, so
+  every MCP tool saw a valid schema as one full of unknown types. The provider is now
+  read from the project config, guarded, because the extension locates the ORM in the
+  workspace at runtime rather than depending on it.
+
 ## [1.0.4] - 2026-09-28
 
 - fix(mcp): keep `@description` on relations. The schema reader captured
