@@ -106,6 +106,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   openvsx:
+    permissions:
+      contents: read
+      id-token: write
     needs: [test, release]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -120,15 +123,14 @@ jobs:
         with:
           name: extension-${{ needs.test.outputs.version }}
           path: artifacts
-      - name: Publish to Open VSX when configured
+      - name: Publish to Open VSX with Trusted Publishing
         env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
           VERSION: ${{ needs.test.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
           release_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha')
-          if [ "$release_sha" != "$GITHUB_SHA" ] || [ -z "$OVSX_PAT" ]; then
-            echo "No new release or Open VSX credentials are not configured."
+          if [ "$release_sha" != "$GITHUB_SHA" ]; then
+            echo "No new release for this commit."
             exit 0
           fi
-          npx --no-install ovsx publish "artifacts/an5-orm-vscode-$VERSION.vsix" --skip-duplicate
+          npx --no-install ovsx publish "artifacts/an5-orm-vscode-$VERSION.vsix" --skip-duplicate --trusted-publishing

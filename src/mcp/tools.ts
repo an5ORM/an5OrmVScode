@@ -7,11 +7,16 @@
  * `confirm: true` argument, so a model cannot trigger a schema change by
  * accident even if the confirmation dialog is bypassed.
  */
+import { generateClient } from '../generate-client';
+import { projectCommand } from '../project-command';
+import { describeColumns } from './describe-table';
+import { assertSelectQuery } from './select-query';
 import { execFile } from 'child_process';
+import { createRequire } from 'module';
 import * as fs from 'fs';
 import * as path from 'path';
 import { McpTool } from './protocol';
-import { analyzeSchema, loadSchemaModels } from './schema-reader';
+import { analyzeSchema, loadSchemaModels, qualifiedTable } from './schema-reader';
 import { resolveWorkspace, Workspace } from './workspace';
 
 const CONFIRM_HELP =
@@ -23,17 +28,13 @@ function json(value: unknown): string {
 
 /** Runs an npm script from the installed `@an5/orm` and captures its output. */
 function runOrmScript(ws: Workspace, script: string, args: string[] = []): Promise<string> {
-  if (!ws.ormDir) {
-    throw new Error(
-      'Could not locate @an5/orm. Install it in this project (npm install @an5/orm) so schema operations can run.',
-    );
-  }
+  const plan = projectCommand(ws, script, args);
 
   return new Promise((resolve, reject) => {
     execFile(
-      process.platform === 'win32' ? 'npm.cmd' : 'npm',
-      ['run', script, ...args],
-      { cwd: ws.ormDir, maxBuffer: 10 * 1024 * 1024, env: { ...process.env } },
+      plan.command,
+      plan.args,
+      { cwd: plan.cwd, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ...plan.env } },
       (err, stdout, stderr) => {
         const output = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
         if (err) {
@@ -62,16 +63,11 @@ function loadAdapters(ws: Workspace): { createAn5Adapter: (opts: Record<string, 
   if (!ws.connectionString) {
     throw new Error('No DATABASE_URL found. Set it in the environment or in the project .env file.');
   }
-  const candidates = [
-    path.join(ws.root, 'node_modules', '@an5', 'adapters'),
-    path.join(ws.ormDir ?? path.join(ws.root, 'node_modules', '@an5', 'orm'), '..', 'adapters'),
-  ];
-  const adaptersDir = candidates.find((dir) => fs.existsSync(path.join(dir, 'package.json')));
-  if (!adaptersDir) {
-    throw new Error('Could not locate @an5/adapters. Install it with: npm install @an5/adapters');
+  for (const root of [ws.root, ...(ws.ormDir ? [ws.ormDir] : [])]) {
+    try { return createRequire(path.join(root, 'package.json'))('@an5/adapters'); }
+    catch { /* try the ORM's dependency before reporting an unavailable adapter */ }
   }
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return require(adaptersDir);
+  throw new Error('Could not load @an5/adapters. Install it in this project: npm install @an5/adapters');
 }
 
 export function createTools(resolve: () => Workspace = () => resolveWorkspace()): McpTool[] {
@@ -85,13 +81,14 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'List AN5 models', ...readOnly },
       async handler() {
-        const models = await loadSchemaModels();
+        const ws = resolve();
+        const models = await loadSchemaModels(ws);
         return json({
-          schemaDir: path.relative(resolve().root, resolve().schemaDir) || '.',
+          schemaDir: path.relative(ws.root, ws.schemaDir) || '.',
           totalModels: models.length,
           models: models.map((m) => ({
             name: m.name,
-            table: `${m.schemaName}.${m.tableName}`,
+            table: qualifiedTable(m),
             fields: m.fields.length,
             relations: m.relations.length,
             description: m.description,
@@ -112,7 +109,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       annotations: { title: 'Describe an AN5 model', ...readOnly },
       async handler(args) {
         const name = String(args.model);
-        const models = await loadSchemaModels();
+        const models = await loadSchemaModels(resolve());
         const model = models.find((m) => m.name.toLowerCase() === name.toLowerCase());
         if (!model) {
           throw new Error(
@@ -121,7 +118,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
         }
         return json({
           name: model.name,
-          table: `${model.schemaName}.${model.tableName}`,
+          table: qualifiedTable(model),
           description: model.description,
           fields: model.fields.map((f) => ({
             name: f.name,
@@ -151,7 +148,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'Get AN5 relations', ...readOnly },
       async handler() {
-        const models = await loadSchemaModels();
+        const models = await loadSchemaModels(resolve());
         const edges = models.flatMap((model) =>
           model.relations.map((r) => ({
             from: model.name,
@@ -174,7 +171,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'Analyze AN5 schema', ...readOnly },
       async handler() {
-        return json(analyzeSchema(await loadSchemaModels()));
+        return json(analyzeSchema(await loadSchemaModels(resolve())));
       },
     },
 
@@ -192,13 +189,23 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
         const ws = resolve();
         const target = path.resolve(ws.root, String(args.file));
         // Refuse to read outside the workspace: this tool takes a path from a model.
-        if (!target.startsWith(path.resolve(ws.root))) {
+        const inside = (root: string, file: string) => {
+          const relative = path.relative(root, file);
+          return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+        };
+        if (!inside(path.resolve(ws.root), target)) {
           throw new Error('Path is outside the workspace root.');
         }
         if (!fs.existsSync(target)) {
           throw new Error(
             `File not found: ${target}. Known schema files: ${ws.schemaFiles.map((f) => path.relative(ws.root, f)).join(', ')}`,
           );
+        }
+        if (!inside(fs.realpathSync(ws.root), fs.realpathSync(target))) {
+          throw new Error('Path is outside the workspace root.');
+        }
+        if (path.extname(target) !== '.an5' || path.extname(fs.realpathSync(target)) !== '.an5' || !fs.statSync(target).isFile()) {
+          throw new Error('Only .an5 schema files can be read.');
         }
         return fs.readFileSync(target, 'utf8');
       },
@@ -218,12 +225,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       annotations: { title: 'Query the AN5 database', ...readOnly },
       async handler(args) {
         const sql = String(args.sql).trim();
-        if (!/^select\b/i.test(sql)) {
-          throw new Error('Only SELECT statements are allowed. Use an5_push_schema or an5_migrate to change data.');
-        }
-        if (/;\s*\S/.test(sql)) {
-          throw new Error('Multiple statements are not allowed in one call.');
-        }
+        assertSelectQuery(sql);
 
         const ws = resolve();
         const { createAn5Adapter } = loadAdapters(ws);
@@ -250,7 +252,8 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       annotations: { title: 'Describe an AN5 table', ...readOnly },
       async handler(args) {
         const table = String(args.table);
-        const models = await loadSchemaModels();
+        const ws = resolve();
+        const models = ws.schemaFiles.length ? await loadSchemaModels(ws) : [];
         const model = models.find(
           (m) =>
             m.name.toLowerCase() === table.toLowerCase() ||
@@ -260,7 +263,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
           return json({
             source: 'schema',
             name: model.name,
-            table: `${model.schemaName}.${model.tableName}`,
+            table: qualifiedTable(model),
             columns: model.fields.map((f) => ({
               name: f.name,
               type: f.sqlType,
@@ -270,13 +273,12 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
           });
         }
 
-        const ws = resolve();
         const { createAn5Adapter } = loadAdapters(ws);
         const adapter = await createAn5Adapter({ connectionString: ws.connectionString });
         try {
           await adapter.$connect();
-          const result = await adapter.table(table).describe();
-          return json({ source: 'database', ...result });
+          const columns = await describeColumns(adapter, table);
+          return json({ source: 'database', table, columns });
         } finally {
           await adapter.$disconnect().catch(() => undefined);
         }
@@ -329,7 +331,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
         title: 'Generate AN5 client code', destructiveHint: false, openWorldHint: false },
       async handler(args) {
         assertConfirmed('an5_generate_client', args);
-        return runOrmScript(resolve(), 'generate');
+        return json(await generateClient(resolve(), String(args.language), typeof args.outputDir === 'string' ? args.outputDir : undefined));
       },
     },
 
@@ -403,9 +405,9 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
 
         const ws = resolve();
         const extra: string[] = [];
-        if (mutating && args.dryRun === true) extra.push('--', '--dry-run');
+        if (mutating && args.dryRun === true) extra.push('--dry-run');
         if (action === 'rollback' && typeof args.steps === 'number') {
-          extra.push('--', String(args.steps));
+          extra.push(String(args.steps));
         }
         return runOrmScript(ws, `db:migrate:${action}`, extra);
       },

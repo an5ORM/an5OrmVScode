@@ -23,6 +23,7 @@ export interface StdioServerSpec {
   label: string;
   command: string;
   args: string[];
+  env?: Record<string, string>;
   cwd?: string;
   version?: string;
 }
@@ -32,6 +33,7 @@ export interface McpJsonEntry {
   type: 'stdio';
   command: string;
   args: string[];
+  env?: Record<string, string>;
   cwd?: string;
 }
 
@@ -40,6 +42,8 @@ export interface SpecOptions {
   extensionPath: string;
   /** Absolute path of the node binary to run the server with. */
   nodePath: string;
+  /** Explicit runtime environment; secret profiles are injected only at launch. */
+  env?: Record<string, string>;
   /** Workspace directory the server should discover the project from. */
   cwd?: string;
   /** Extension version, passed so a server upgrade prompts a tool refresh. */
@@ -62,8 +66,8 @@ export function serverEntryPath(extensionPath: string): string {
  * The command is an absolute node binary rather than `'node'` on purpose: an MCP
  * server is started by the editor, not from a shell, so it inherits no `PATH` the
  * user configured, and a machine with node only in a version manager — nvm, fnm,
- * volta, asdf — has no `node` for it to find. `process.execPath` is the node
- * running the extension host, which is guaranteed present.
+ * volta, asdf — may need an explicit runtime path. The caller resolves Node
+ * or supplies the editor runtime with ELECTRON_RUN_AS_NODE.
  */
 export function stdioSpec(options: SpecOptions): StdioServerSpec {
   const spec: StdioServerSpec = {
@@ -73,6 +77,7 @@ export function stdioSpec(options: SpecOptions): StdioServerSpec {
   };
   // `cwd` is how the server finds the project: an5Orm.config.js, the .an5 files,
   // the installed @an5/orm and DATABASE_URL. Left unset when no folder is open.
+  if (options.env) spec.env = { ...options.env };
   if (options.cwd) spec.cwd = options.cwd;
   if (options.version) spec.version = options.version;
   return spec;
@@ -81,6 +86,7 @@ export function stdioSpec(options: SpecOptions): StdioServerSpec {
 /** The `mcp.json` entry for a spec. `cwd` is omitted rather than emitted empty. */
 export function mcpJsonEntry(spec: StdioServerSpec): McpJsonEntry {
   const entry: McpJsonEntry = { type: 'stdio', command: spec.command, args: spec.args };
+  if (spec.env) entry.env = { ...spec.env };
   if (spec.cwd) entry.cwd = spec.cwd;
   return entry;
 }

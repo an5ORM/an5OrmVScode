@@ -34,6 +34,9 @@ function generateSvg(size) {
 async function main() {
   console.log('🚀 Generating AN5 icons in multiple SVG & PNG sizes...\n');
 
+  // The Activity Bar renders SVGs as monochrome masks; brand letters must be transparent.
+  fs.writeFileSync(path.join(ICONS_DIR, 'activity.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="24" height="24">\n  <!-- AN5 brand proportions; knockout letters remain visible in VS Code\'s monochrome icon mask. -->\n  <defs>\n    <mask id="an5-letters" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">\n      <rect x="5" y="5" width="90" height="90" rx="20" fill="white"/>\n      <text x="50.5" y="62" font-family="Arial, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, sans-serif" font-size="34" font-weight="800" text-anchor="middle" fill="black">AN5</text>\n    </mask>\n  </defs>\n  <rect x="5" y="5" width="90" height="90" rx="20" fill="#c5c5c5" mask="url(#an5-letters)"/>\n</svg>\n');
+
   for (const size of SIZES) {
     const svgContent = generateSvg(size);
     const svgFilename = `an5-${size}x${size}.svg`;

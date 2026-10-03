@@ -16,10 +16,17 @@ const distDir = path.join(root, 'dist', 'mcp');
 
 let passed = 0;
 let failed = 0;
+const pending = [];
 
 function test(name, fn) {
   try {
-    fn();
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      pending.push(result.then(() => { passed++; console.log(`  ✓ ${name}`); }, err => {
+        failed++; console.log(`  ✗ ${name}\n    ${err.message}`);
+      }));
+      return;
+    }
     passed++;
     console.log(`  ✓ ${name}`);
   } catch (err) {
@@ -64,7 +71,7 @@ test('builds the stdio definition with positional arguments, not an options obje
     'McpStdioServerDefinition takes positional arguments, not an options object',
   );
   assert.ok(
-    /new\s+(?:vscode\.)?McpStdioServerDefinition\s*\(\s*spec\.label\s*,/.test(compiled),
+    /new\s+(?:vscode\.)?McpStdioServerDefinition\s*\(\s*(?:folders\.length > 1 \? `\$\{spec\.label\} · \$\{folder\.name\}` : )?spec\.label\s*,/.test(compiled),
     'Expected the label to be passed as the first positional argument',
   );
 });
@@ -547,5 +554,7 @@ test('degrades gracefully when the project has no schema', () => {
 
 fs.rmSync(workspace, { recursive: true, force: true });
 
-console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
-process.exit(failed > 0 ? 1 : 0);
+Promise.all(pending).then(() => {
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+  process.exitCode = failed > 0 ? 1 : 0;
+});

@@ -1,4 +1,9 @@
 import * as path from 'path';
+import { projectCommand } from './project-command';
+import { resolveWorkspace } from './mcp/workspace';
+import { SchemaView } from './schema-view';
+import { nodeRuntime } from './node-runtime';
+import { ConnectionUi } from './connections/ui';
 import * as vscode from 'vscode';
 import {
   MCP_SERVER_KEY,
@@ -105,6 +110,8 @@ function formatEnumBlock(lines: string[]): string[] {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  const connections = new ConnectionUi(context);
+  context.subscriptions.push(connections, new SchemaView(connections));
   const formatter = vscode.languages.registerDocumentFormattingEditProvider('an5-schema', {
     provideDocumentFormattingEdits(document: vscode.TextDocument): vscode.TextEdit[] {
       const edits: vscode.TextEdit[] = [];
@@ -200,6 +207,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Show QuickPick menu
   const menuCommand = vscode.commands.registerCommand('an5.showMenu', async () => {
     const items = [
+      { label: '$(database) Manage Connections', description: 'Secure database profiles and workspace tools', command: 'an5.connections.manage' },
       { label: '$(gear) Generate Client Code', description: 'Run npm run generate / an5 generate', command: 'an5.generate' },
       { label: '$(cloud-upload) Push Database Schema', description: 'Run npm run db:push / an5 push', command: 'an5.push' },
       { label: '$(cloud-download) Pull Database Schema', description: 'Run npm run db:pull / an5 pull', command: 'an5.pull' },
@@ -215,13 +223,15 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(menuCommand);
 
   // Command: Open or Create Config File
-  const openConfigCommand = vscode.commands.registerCommand('an5.openConfig', async () => {
-    const files = await vscode.workspace.findFiles('**/an5Orm.config.{js,cjs}', '**/node_modules/**', 1);
+  const openConfigCommand = vscode.commands.registerCommand('an5.openConfig', async (selectedFolder?: vscode.WorkspaceFolder) => {
+    const folder = selectedFolder || await connections.pickFolder();
+    if (!folder) return;
+    const files = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, 'an5Orm.config.{js,cjs}'), '**/node_modules/**', 1);
     if (files.length > 0) {
       const doc = await vscode.workspace.openTextDocument(files[0]);
       await vscode.window.showTextDocument(doc);
     } else {
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      const workspaceFolder = folder;
       if (!workspaceFolder) {
         vscode.window.showErrorMessage('No workspace folder open to create an5Orm.config.js');
         return;
@@ -231,6 +241,7 @@ export function activate(context: vscode.ExtensionContext) {
  * AN5 ORM Configuration
  */
 module.exports = {
+  connectionString: process.env.DATABASE_URL,
   schemaDir: 'an5Schema',
   outputs: {
     typescript: {
@@ -243,13 +254,14 @@ module.exports = {
     dotnet: {
       outputDir: 'an5Client/dotnet',
     },
+    golang: { outputDir: 'an5Client/golang' },
+    rust: { outputDir: 'an5Client/rust' },
   },
   pull: {
     exclude: ['^__', '^sys\\\\.', '^igrations'],
     preserveRelations: true,
   },
   generation: {
-    generateComments: true,
     generateMetadata: true,
   },
 };
@@ -262,16 +274,34 @@ module.exports = {
   });
   context.subscriptions.push(openConfigCommand);
 
-  // Helper to run terminal command
-  function runAn5Command(cmdName: string, defaultNpmScript: string) {
-    const terminal = vscode.window.createTerminal(`AN5 ORM: ${cmdName}`);
-    terminal.show();
-    terminal.sendText(`npm run ${defaultNpmScript} || npx an5 ${cmdName}`);
-  }
+  // Commands use the selected workspace and pass credentials through the terminal environment.
+  async function runAn5Command(cmdName: string, defaultNpmScript: string, selectedFolder?: vscode.WorkspaceFolder) {
+    if (!vscode.workspace.isTrusted) { vscode.window.showErrorMessage('Trust this workspace before running AN5 commands.'); return; }
+    const folder = selectedFolder || await connections.pickFolder();
+    if (!folder) return;
+    if (cmdName === 'push' || cmdName === 'pull') {
+      const action = cmdName === 'push' ? 'Push schema' : 'Pull schema';
+      const description = cmdName === 'push' ? 'This can change database tables and columns.' : 'This can overwrite schema files.';
+      if (await vscode.window.showWarningMessage(`${action} in ${folder.name}? ${description}`, { modal: true }, action) !== action) return;
+    }
+    try {
+      const ws = resolveWorkspace(folder.uri.fsPath);
+      if (cmdName !== 'pull' && !ws.schemaFiles.length) throw new Error('No .an5 schema files found. Create a schema before generating or pushing.');
+      const active = await connections.environment(folder);
+      const plan = projectCommand({ ...ws, connectionString: active.DATABASE_URL || ws.connectionString }, defaultNpmScript, [], nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')));
+      const options = { cwd: plan.cwd, env: plan.env };
+      const execution = process.platform === 'win32' && plan.command === 'npm.cmd'
+        ? new vscode.ShellExecution(plan.command, plan.args, options)
+        : new vscode.ProcessExecution(plan.command, plan.args, options);
+      const task = new vscode.Task({ type: 'an5', action: cmdName }, vscode.workspace.getWorkspaceFolder(folder.uri) || folder, `AN5: ${cmdName}`, 'AN5 ORM', execution);
+      task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, panel: vscode.TaskPanelKind.New, clear: false };
+      await vscode.tasks.executeTask(task);
+    } catch (error) { vscode.window.showErrorMessage(`AN5: ${(error as Error).message}`); }
 
-  context.subscriptions.push(vscode.commands.registerCommand('an5.generate', () => runAn5Command('generate', 'generate')));
-  context.subscriptions.push(vscode.commands.registerCommand('an5.push', () => runAn5Command('push', 'db:push')));
-  context.subscriptions.push(vscode.commands.registerCommand('an5.pull', () => runAn5Command('pull', 'db:pull')));
+  }
+  context.subscriptions.push(vscode.commands.registerCommand('an5.generate', (folder?: vscode.WorkspaceFolder) => runAn5Command('generate', 'generate', folder)));
+  context.subscriptions.push(vscode.commands.registerCommand('an5.push', (folder?: vscode.WorkspaceFolder) => runAn5Command('push', 'db:push', folder)));
+  context.subscriptions.push(vscode.commands.registerCommand('an5.pull', (folder?: vscode.WorkspaceFolder) => runAn5Command('pull', 'db:pull', folder)));
 
   // Completion & Hover provider for an5Orm.config.js / cjs
   const configSelector: vscode.DocumentFilter[] = [
@@ -311,11 +341,11 @@ module.exports = {
   // Registration needs no folder: the provider is registered unconditionally and
   // the folders are read when VS Code asks, so a server shows up in a window that
   // has none open yet.
-  registerMcpServer(context);
+  registerMcpServer(context, connections);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('an5.mcp.install', async () => {
-      await installMcpServer(context);
+    vscode.commands.registerCommand('an5.mcp.install', async (folder?: vscode.WorkspaceFolder) => {
+      await installMcpServer(context, folder || await connections.pickFolder());
     }),
     vscode.commands.registerCommand('an5.mcp.showConfig', async () => {
       await showMcpConfig(context);
@@ -332,7 +362,7 @@ module.exports = {
  * absent, the registration is skipped, and `AN5: Install MCP Server` is the way in
  * because it writes the config file itself.
  */
-function registerMcpServer(context: vscode.ExtensionContext): void {
+function registerMcpServer(context: vscode.ExtensionContext, connections: ConnectionUi): void {
   // Present from VS Code 1.101. The guard keeps the extension loadable on builds
   // where the API is missing, which is also what happens on a host that shims the
   // namespace.
@@ -344,6 +374,8 @@ function registerMcpServer(context: vscode.ExtensionContext): void {
   const emitter = new vscode.EventEmitter<void>();
   context.subscriptions.push(emitter);
 
+  context.subscriptions.push(connections.onDidChange(() => emitter.fire()));
+
   // VS Code asks again when this fires, so a folder opened or closed after
   // activation is reflected instead of staying stale.
   context.subscriptions.push(
@@ -354,8 +386,8 @@ function registerMcpServer(context: vscode.ExtensionContext): void {
     register(MCP_PROVIDER_ID, {
       onDidChangeMcpServerDefinitions: emitter.event,
       provideMcpServerDefinitions: async (token) => {
-        const folders = vscode.workspace.workspaceFolders;
-        if (!folders || folders.length === 0) return [];
+        const folders = connections.projects();
+        if (!vscode.workspace.isTrusted || !folders || folders.length === 0) return [];
 
         const extensionPath = context.extensionUri.fsPath;
         const version = extensionVersion(context);
@@ -365,7 +397,8 @@ function registerMcpServer(context: vscode.ExtensionContext): void {
             extensionPath,
             // The node running this extension host, not `'node'` from a PATH the
             // server would not inherit.
-            nodePath: process.execPath,
+            nodePath: nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')).command,
+            env: nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')).env,
             cwd: folder.uri.fsPath,
             version,
           });
@@ -373,10 +406,10 @@ function registerMcpServer(context: vscode.ExtensionContext): void {
           // Positional, matching `McpStdioServerDefinition`'s signature. `cwd` is
           // assigned separately because the constructor does not take it.
           const definition = new vscode.McpStdioServerDefinition(
-            spec.label,
+            folders.length > 1 ? `${spec.label} · ${folder.name}` : spec.label,
             spec.command,
             spec.args,
-            {},
+            spec.env || {},
             spec.version,
           );
           definition.cwd = folder.uri;
@@ -387,7 +420,18 @@ function registerMcpServer(context: vscode.ExtensionContext): void {
           return definition;
         });
       },
-      resolveMcpServerDefinition: async (definition) => definition,
+      resolveMcpServerDefinition: async (definition) => {
+        if (!vscode.workspace.isTrusted) throw new Error('Trust this workspace before launching AN5 MCP.');
+        if (definition instanceof vscode.McpStdioServerDefinition && definition.cwd) {
+          const folder = connections.projects().find(f => f.uri.toString() === definition.cwd!.toString()) || vscode.workspace.getWorkspaceFolder(definition.cwd);
+          if (folder) {
+            const env = { ...definition.env };
+            delete env.DATABASE_URL;
+            definition.env = { ...env, ...await connections.environment(folder) };
+          }
+        }
+        return definition;
+      },
     }),
   );
 }
@@ -409,8 +453,8 @@ function extensionVersion(context: vscode.ExtensionContext): string | undefined 
  *
  * The merge preserves every other server, and running it twice changes nothing.
  */
-async function installMcpServer(context: vscode.ExtensionContext): Promise<void> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
+async function installMcpServer(context: vscode.ExtensionContext, selectedFolder?: vscode.WorkspaceFolder): Promise<void> {
+  const folder = selectedFolder;
   if (!folder) {
     const open = await vscode.window.showErrorMessage(
       'Open the folder that holds your AN5 project before installing the MCP server.',
@@ -443,7 +487,8 @@ async function installMcpServer(context: vscode.ExtensionContext): Promise<void>
   const target = vscode.Uri.joinPath(folder.uri, ...relative.split('/'));
   const spec = stdioSpec({
     extensionPath: context.extensionUri.fsPath,
-    nodePath: process.execPath,
+    nodePath: nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')).command,
+    env: nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')).env,
     cwd: folder.uri.fsPath,
     version: extensionVersion(context),
   });
@@ -487,7 +532,8 @@ async function showMcpConfig(context: vscode.ExtensionContext): Promise<void> {
 
   const spec = stdioSpec({
     extensionPath: context.extensionUri.fsPath,
-    nodePath: process.execPath,
+    nodePath: nodeRuntime(vscode.workspace.getConfiguration('an5', folder).get<string>('nodePath')).command,
+    env: nodeRuntime(vscode.workspace.getConfiguration('an5', folder).get<string>('nodePath')).env,
     cwd: folder.fsPath,
     version: extensionVersion(context),
   });

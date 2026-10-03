@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="24" height="24">
+  <!-- AN5 brand proportions; knockout letters remain visible in VS Code's monochrome icon mask. -->
+  <defs>
+    <mask id="an5-letters" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+      <rect x="5" y="5" width="90" height="90" rx="20" fill="white"/>
+      <text x="50.5" y="62" font-family="Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="34" font-weight="800" text-anchor="middle" fill="black">AN5</text>
+    </mask>
+  </defs>
+  <rect x="5" y="5" width="90" height="90" rx="20" fill="#c5c5c5" mask="url(#an5-letters)"/>
+</svg>

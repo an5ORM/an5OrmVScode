@@ -1,0 +1,48 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { spawnSync } = require('node:child_process');
+const chrome = process.env.AN5_TEST_CHROME || '/usr/bin/google-chrome';
+
+test('connection webview handles edits, XSS names, busy state and narrow layouts in Chromium', { skip: !fs.existsSync(chrome) }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-webview-browser-'));
+  try {
+    const media = path.resolve(__dirname, '../media');
+    for (const name of ['connections.js', 'connections.css']) fs.copyFileSync(path.join(media, name), path.join(dir, name));
+    const fixture = { type: 'state', workspace: 'Test project', root: '/tmp/project', trusted: true, busy: false, profiles: [{ id: 'p1', name: '<img src=x onerror="window.injected=true">', provider: 'sqlite' }], activeId: 'p1' };
+    const stub = `window.sent=[];window.fixture=${JSON.stringify(fixture)};window.acquireVsCodeApi=()=>({postMessage:m=>{window.sent.push(m);if(m.type==='ready')setTimeout(()=>window.dispatchEvent(new MessageEvent('message',{data:window.fixture})),10)}});`;
+    const assertions = `setTimeout(()=>{try {
+      const check=(value,message)=>{if(!value)throw Error(message)};
+      check(document.querySelector('.profile-name').textContent.includes('<img'), 'Names must be text');
+      check(!document.querySelector('#profiles img')&&!window.injected, 'Names must not inject HTML');
+      document.querySelectorAll('.profile-actions button')[2].click();
+      check(document.getElementById('name').value===window.fixture.profiles[0].name, 'Edit must load metadata');
+      check(document.getElementById('connectionString').value==='', 'Edit must not reveal saved secrets');
+      document.getElementById('name').value='Renamed';
+      document.getElementById('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      const save=window.sent.find(m=>m.type==='save');check(save.id==='p1'&&save.name==='Renamed'&&save.connectionString==='', 'Blank edit must keep stored credentials');
+      window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,busy:true}}));
+      check([...document.querySelectorAll('button')].every(b=>b.disabled), 'Busy operations must disable buttons');
+      check(document.documentElement.scrollWidth<=window.innerWidth+1, 'Narrow layout must not overflow');
+      document.getElementById('name').value='Old workspace draft';
+      document.getElementById('connectionString').value='Draft credential';
+      window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,root:'/other/workspace',profiles:[],busy:false}}));
+      check(document.getElementById('name').value===''&&document.getElementById('connectionString').value==='', 'Workspace switch must clear credential drafts');
+      const project={id:'project',name:'Project connection',provider:'sqlite',project:true,source:'.env'};
+      window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,root:'/other/workspace',profiles:[project],activeId:'project',busy:false}}));
+      check(document.querySelector('.active-badge')&&document.getElementById('active').textContent==='Project connection', 'Discovered project connection must be active by default');
+      const labels=[...document.querySelectorAll('.profile-actions button')].map(b=>b.textContent);
+      check(labels.includes('Open source')&&!labels.includes('Delete')&&!labels.includes('Edit'), 'Project sources must not be mutated as saved profiles');
+      check(document.querySelector('img.brand').naturalWidth>0, 'Shared AN5 logo must load');
+      document.body.dataset.testResult='passed';
+    }catch(e){document.body.dataset.testResult='failed: '+e.message}},200);`;
+    let html = fs.readFileSync(path.join(media, 'connections.html'), 'utf8').replaceAll('__CSP__', 'file:').replaceAll('__NONCE__', 'testnonce').replace('__LOGO__', 'file://' + path.resolve(media, '../icons/an5-64x64.svg')).replace('__CSS__', 'connections.css').replace('__SCRIPT__', 'connections.js');
+    html = html.replace('<script nonce="testnonce" src=', `<script nonce="testnonce">${stub}</script><script nonce="testnonce" src=`).replace('</body>', `<script nonce="testnonce">${assertions}</script></body>`);
+    const file = path.join(dir, 'index.html'); fs.writeFileSync(file, html);
+    const result = spawnSync(chrome, ['--headless', '--no-sandbox', '--disable-gpu', '--allow-file-access-from-files', `--user-data-dir=${path.join(dir, 'chrome')}`, '--window-size=420,1000', '--virtual-time-budget=1000', '--dump-dom', `file://${file}`], { encoding: 'utf8', timeout: 20000, maxBuffer: 2 * 1024 * 1024 });
+    assert.equal(result.status, 0, result.error?.message);
+    assert.match(result.stdout, /data-test-result="passed"/, result.stdout.match(/data-test-result="[^"]+"/)?.[0] || 'Browser assertions did not complete');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

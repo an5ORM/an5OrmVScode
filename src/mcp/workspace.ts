@@ -7,6 +7,7 @@
  * `@an5/adapters` packages and `DATABASE_URL`.
  */
 import * as fs from 'fs';
+import { createRequire } from 'module';
 import * as path from 'path';
 
 export interface An5Config {
@@ -29,6 +30,7 @@ export interface Workspace {
   ormDir?: string;
   /** `DATABASE_URL` from the process env or the project's `.env`. */
   connectionString?: string;
+  connectionSource?: string;
 }
 
 const CONFIG_CANDIDATES = ['an5Orm.config.js', 'an5Orm.config.cjs'];
@@ -38,8 +40,12 @@ function readConfig(root: string): { configPath?: string; config: An5Config } {
   for (const name of CONFIG_CANDIDATES) {
     const candidate = path.join(root, name);
     if (!fs.existsSync(candidate)) continue;
+    const previousEnv = { ...process.env };
     try {
+      // Resolve config references against this project's .env without contaminating other projects.
+      for (const [key, value] of Object.entries(readEnv(root))) if (process.env[key] === undefined) process.env[key] = value;
       // eslint-disable-next-line @typescript-eslint/no-var-requires
+      delete require.cache[require.resolve(candidate)];
       const loaded = require(candidate) as An5Config | { default?: An5Config };
       const config =
         loaded && typeof loaded === 'object' && 'default' in loaded && loaded.default
@@ -48,6 +54,9 @@ function readConfig(root: string): { configPath?: string; config: An5Config } {
       return { configPath: candidate, config: (config ?? {}) as An5Config };
     } catch {
       return { configPath: candidate, config: {} };
+    } finally {
+      for (const key of Object.keys(process.env)) if (!(key in previousEnv)) delete process.env[key];
+      Object.assign(process.env, previousEnv);
     }
   }
   return { config: {} };
@@ -80,6 +89,7 @@ function findSchemaFiles(dir: string, depth = 0): string[] {
 
 /** Loads the installed `@an5/orm`, checking the project and its parent. */
 function findOrmDir(root: string): string | undefined {
+  try { return path.dirname(createRequire(path.join(root, 'package.json')).resolve('@an5/orm/package.json')); } catch { /* local checkout fallback */ }
   const candidates = [
     path.join(root, 'node_modules', '@an5', 'orm'),
     path.join(root, '..', 'an5Orm'),
@@ -87,32 +97,28 @@ function findOrmDir(root: string): string | undefined {
   return candidates.find((dir) => fs.existsSync(path.join(dir, 'package.json')));
 }
 
-/** Reads `DATABASE_URL` from `.env` without pulling in a dotenv dependency. */
-function readConnectionString(root: string): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-
-  for (const name of ['.env', path.join(root, '.env')]) {
-    const file = path.isAbsolute(name) ? name : path.join(root, name);
-    if (!fs.existsSync(file)) continue;
-    try {
-      const match = fs
-        .readFileSync(file, 'utf8')
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find((line) => line.startsWith('DATABASE_URL='));
-      if (match) {
-        const value = match.slice('DATABASE_URL='.length).trim().replace(/^["']|["']$/g, '');
-        if (value) return value;
-      }
-    } catch {
-      // Ignore unreadable .env and fall through to "not configured".
+/** Parse the project's environment file without mutating the extension host. */
+function readEnv(root: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  try {
+    for (const line of fs.readFileSync(path.join(root, '.env'), 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!match) continue;
+      const raw = match[2].trim();
+      const quote = raw[0];
+      values[match[1]] = quote === '"' || quote === "'" ? raw.slice(1, raw.indexOf(quote, 1) < 0 ? undefined : raw.indexOf(quote, 1)) : raw.replace(/\s+#.*$/, '').trim();
     }
-  }
-  return undefined;
+  } catch { /* Missing/unreadable .env is optional. */ }
+  return values;
 }
 
 export function resolveWorkspace(root: string = process.cwd()): Workspace {
   const { configPath, config } = readConfig(root);
+  const envValue = process.env.DATABASE_URL?.trim();
+  const fileValue = readEnv(root).DATABASE_URL;
+  const configValue = typeof config.connectionString === 'string' ? config.connectionString.trim() : undefined;
+  const connectionString = envValue || fileValue || configValue;
+  const connectionSource = envValue ? 'DATABASE_URL' : fileValue ? '.env' : configValue ? path.basename(configPath || 'an5Orm.config.js') : undefined;
   const schemaDirName = typeof config.schemaDir === 'string' ? config.schemaDir : 'an5Schema';
   const configuredSchemaDir = path.resolve(root, schemaDirName);
   const schemaFiles = findSchemaFiles(configuredSchemaDir);
@@ -129,6 +135,7 @@ export function resolveWorkspace(root: string = process.cwd()): Workspace {
     schemaDir: fallbackFiles.length > 0 ? path.dirname(fallbackFiles[0] as string) : configuredSchemaDir,
     schemaFiles: fallbackFiles,
     ormDir: findOrmDir(root),
-    connectionString: readConnectionString(root),
+    connectionString,
+    connectionSource,
   };
 }

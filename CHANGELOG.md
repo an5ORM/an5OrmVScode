@@ -1,6 +1,55 @@
 # Changelog
 
+## [1.1.4] - 2026-10-03
+
+- Use the shared AN5 logo asset in the Connections workspace header.
+
+## [1.1.3] - 2026-10-03
+
+- Match the Activity Bar AN5 badge to the rounded square logo in Connections.
+
+## [1.1.2] - 2026-10-03
+
+### Fixed
+- Automatically display the current project connection from environment/config, without manual import.
+- Discover configured subprojects and follow the nearest project for the active editor.
+- Refresh live source connections when config/env changes, and isolate environment variables while evaluating project configuration.
+- Run tasks and MCP in the selected project, including nested projects.
+
+
+## [1.1.1] - 2026-10-03
+
+### Fixed
+- Use the AN5 wordmark in the Activity Bar, with transparent letters that remain legible when VS Code applies its monochrome icon mask.
+
+
+## [1.1.0] - 2026-10-03
+
+### Added
+- AN5 Activity Bar container with Connections, Schema Explorer and Project Actions.
+- Connection manager webview: save/edit/delete, import from project settings, select an active profile and test database connectivity.
+- Workspace-scoped profiles with credentials in VS Code SecretStorage, injected into AN5 tasks and extension-provided MCP only at launch.
+- Model/field/relation navigation, workspace switching and configuration shortcuts.
+- `an5.nodePath` to select a Node runtime for MCP and isolated connection probes.
+- Connection, browser and real Extension Host regression coverage.
+
+### Fixed
+- Node runtime selection and Electron Node-mode fallback for MCP startup.
+- Config refresh, `.env` parsing and `connectionString` fallback when DATABASE_URL is absent.
+- Installed generator module loading, workspace selection, relation target normalization and nested schema discovery.
+- Safe schema-file path containment; conservative SELECT validation and live table description using supported adapter APIs.
+- Workspace command execution, argument forwarding and removal of automatic command retries.
+- MCP generation honors language/output and rejects output paths or symlinks outside the workspace.
+- Await asynchronous MCP tests and derive the MCP protocol version from the extension manifest.
+
+
 ## [1.0.6] - 2026-10-03
+
+### Published
+- The extension is on the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode)
+  as well as [Open VSX](https://open-vsx.org/extension/an5orm/an5-orm-vscode). The id is the
+  same on both, so `code --install-extension an5orm.an5-orm-vscode` works in VS Code and in
+  VSCodium, which resolves it against Open VSX.
 
 ### Fixed
 - **The MCP server never appeared in `MCP: List Servers`** — it was constructed with an

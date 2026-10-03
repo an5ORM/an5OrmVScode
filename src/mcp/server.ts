@@ -14,7 +14,7 @@ import { createTools } from './tools';
 import { resolveWorkspace } from './workspace';
 
 const SERVER_NAME = 'an5-orm';
-const SERVER_VERSION = '1.0.2';
+const SERVER_VERSION: string = require('../../package.json').version;
 
 function log(message: string): void {
   process.stderr.write(`[an5-orm-mcp] ${message}\n`);

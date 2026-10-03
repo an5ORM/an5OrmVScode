@@ -4,14 +4,76 @@
   <img src="icons/an5-128x128.png" width="96" height="96" alt="AN5 ORM Logo" />
 </p>
 
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode">
+    <img src="https://img.shields.io/marketplace/vscode/vscode--marketplace/an5orm.an5--orm--vscode" alt="VS Code Marketplace version" />
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode">
+    <img src="https://img.shields.io/marketplace/d/total?itemName=an5orm.an5-orm-vscode" alt="Marketplace installs" />
+  </a>
+  <a href="https://open-vsx.org/extension/an5orm/an5-orm-vscode">
+    <img src="https://img.shields.io/open-vsx/vscode/an5orm/an5-orm-vscode" alt="Open VSX version" />
+  </a>
+</p>
+
 VS Code extension for AN5 ORM schema files. Provides syntax highlighting, formatting, status bar commands, and tooling for `an5Orm.config.js` and `.an5` files.
+
+Published on the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode) and on [Open VSX](https://open-vsx.org/extension/an5orm/an5-orm-vscode).
 
 ## Features
 
+- **AN5 Activity Bar** — Connections, Schema Explorer and Project Actions in one sidebar
+- **Connection manager** — Add/edit/delete profiles, test connectivity and choose the active database
+- **SecretStorage** — Connection strings stay out of workspace settings, config files and the repository
+- **Schema Explorer** — Browse models, fields, primary keys and relations; open declarations directly
 - **Syntax highlighting** — Color-coded model definitions, fields, attributes
 - **Auto-formatting** — Align fields, types, and attributes
 - **Snippets** — Quick code completion for common patterns
 - **MCP server** — Exposes the AN5 ORM to agentic clients such as GitHub Copilot
+
+## Connections and workspace UI (1.1.0)
+
+Click the **AN5 ORM** database icon in the Activity Bar, then **Manage connections**.
+
+![AN5 connection manager with example profiles](media/connections-preview.png)
+
+Project connections appear automatically from `DATABASE_URL`, `.env` or
+`an5Orm.config.js/.cjs`; no import is required. Configured subprojects are discovered
+inside a workspace too. The manager follows the nearest project for the active editor,
+and refreshes when configuration files change. Source connections are live references:
+**Open source** edits the original file; they are not copied into saved profiles.
+
+1. Choose the project in the top right when using multiple folders or subprojects.
+2. Add a name and a SQL Server, PostgreSQL, MySQL or SQLite connection string; **Save connection** stores it in VS Code SecretStorage.
+3. Select **Test** to run `SELECT 1`, then **Use connection** to activate the profile.
+4. **Edit** keeps saved credentials when its password field is left blank. **Delete** removes the profile and its stored secret.
+
+**Import project connection** is optional when you want a separate saved copy. It reads the current `DATABASE_URL`, project `.env`, or
+`connectionString` in `an5Orm.config.js/.cjs`, in that order, and stores a secure copy.
+It does not modify the source file. If secrets are already in a config file, importing
+them does not remove them; edit that file to use an environment reference when needed.
+
+Active profiles override `DATABASE_URL` for AN5 tasks and **extension-provided MCP
+servers**. Restart an existing MCP server after changing profiles. A manually configured
+`.vscode/mcp.json`, `.mcp.json`, or another client's server uses that client's environment
+and the project config; it does not have access to the extension's SecretStorage.
+**Use project default** clears the profile override. Secrets are not exported to MCP JSON.
+
+Use **Open / create config** to edit the actual workspace config. **Copy config reference**
+copies `connectionString: process.env.DATABASE_URL,` for use inside `module.exports`.
+The extension never rewrites an existing JavaScript config automatically.
+
+The **Schema Explorer** shows declarations without automatically connecting to a database.
+**Project Actions** provides Generate, Push, Pull and MCP configuration shortcuts. Push and
+Pull require confirmation. Workspace scripts run from the workspace root; generation can
+also use the installed ORM's compiled generator. Database command entry points must be
+available locally or provided by workspace npm scripts. No package is downloaded as a fallback.
+
+Connection checks require `@an5/adapters` and the relevant database driver in the project.
+Checks run in an isolated Node process with a 15-second limit; driver error messages and
+credentials are not forwarded to the UI. SQLite relative paths resolve from the workspace.
+Profiles belong to the current VS Code workspace; credentials may need to be entered again
+when moving to a different machine or editor profile. Database operations require Workspace Trust.
 
 ## MCP server (GitHub Copilot, Cursor, Claude Desktop)
 
@@ -33,16 +95,17 @@ workspace for you, with the extension path already resolved:
 Your other servers and the rest of the file are left alone, running it twice
 changes nothing, and a file it cannot parse is reported rather than overwritten.
 
-The server is started with the editor's own Node binary rather than `node` from
-`PATH`, so a version-manager install works the same as a system one.
+The extension resolves an absolute Node binary from `PATH`. Set `an5.nodePath` to
+an absolute Node path if your editor cannot find your version-manager installation.
+When no Node binary is available, the editor runtime is used in Node mode.
 
 To see the resolved configuration without writing it, run
 **AN5: Show MCP Server Configuration**.
 
-For another MCP client, point it at the server shipped in the installed
-extension — the paths `AN5: Show MCP Server Configuration` prints are the ones to
-use. The server is discoverable from there, not from `node_modules`: this
-extension is installed from the marketplace, not from npm.
+For another MCP client, point it at the server inside the installed extension;
+**AN5: Show MCP Server Configuration** prints the paths to use. There is no
+`node_modules` copy to run — this extension is installed from the marketplace,
+not from npm.
 
 The server discovers the project from its working directory: it reads
 `an5Orm.config.js`, finds the `.an5` files, uses the installed `@an5/orm` for
@@ -82,9 +145,18 @@ so VS Code shows a confirmation dialog, **and** they require an explicit
 
 ### From the Marketplace
 
+Install **AN5 ORM Schema Tooling** from the Extensions view, or:
+
 ```bash
 code --install-extension an5orm.an5-orm-vscode
 ```
+
+The extension id is the same on both registries, so the same command works in
+VSCodium and other VS Code-compatible editors — they resolve it against Open VSX
+instead.
+
+- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode)
+- [Open VSX](https://open-vsx.org/extension/an5orm/an5-orm-vscode)
 
 ### From a VSIX
 
@@ -92,7 +164,8 @@ code --install-extension an5orm.an5-orm-vscode
 code --install-extension an5-orm-vscode-<version>.vsix
 ```
 
-Build one with `npm run package`.
+Build one with `npm run package`. Every GitHub Release attaches the tested VSIX,
+which is also what the Marketplace upload uses.
 
 ### From Source
 
@@ -211,8 +284,24 @@ add its entry to `CHANGELOG.md`, then push to `main`. CI creates `v<version>`
 and a GitHub Release with the tested VSIX attached. An existing version on a
 different commit is left alone. Version tags and manual workflow runs also work.
 
-Open VSX publishing uses the same tested VSIX and the repository Actions secret
-`OVSX_PAT`. It publishes automatically when that secret is configured.
+Open VSX publishing uses the same tested VSIX with OIDC Trusted Publishing.
+The `openvsx` job has `id-token: write` and uses `--trusted-publishing`; it does
+not use an `OVSX_PAT` secret.
+
+Before running a release, an owner of namespace `an5orm` must register the
+extension at [Settings → Trusted Publishers](https://open-vsx.org/user-settings/trusted-publishers):
+
+- Provider: **GitHub Actions**
+- Namespace: **an5orm**; extension: **an5-orm-vscode**
+- Organization or User name: **an5ORM**
+- Repository name: **an5OrmVScode**
+- Workflow filename: **ci-release.yml**
+- Environment name: leave empty (the publishing job does not use an environment)
+
+The publisher agreement must already be signed and an active extension version
+must exist. After a successful CI publication, remove the unused `OVSX_PAT`
+repository secret and revoke its old token if it is not used elsewhere.
+See the [Open VSX Trusted Publishing documentation](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing).
 
 ### VS Code Marketplace (manual upload, no Azure billing)
 
