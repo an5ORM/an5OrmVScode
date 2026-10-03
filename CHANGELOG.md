@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0] - 2026-10-03
+
+- Refresh the UI screenshot and replace broken Marketplace/Open VSX badge endpoints.
+
+- Bundle an AN5 ORM agent skill and add project synchronization from the sidebar, Connections and Command Palette.
+- Preserve user AGENTS.md conventions and refuse unmanaged skill conflicts or symlink writes.
+
 ## [1.1.4] - 2026-10-03
 
 - Use the shared AN5 logo asset in the Connections workspace header.

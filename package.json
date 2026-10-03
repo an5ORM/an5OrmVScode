@@ -2,7 +2,7 @@
   "name": "an5-orm-vscode",
   "displayName": "AN5 ORM Schema Tooling",
   "description": "AN5 ORM workspace, secure database connections, schema tooling and MCP integration.",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "publisher": "an5orm",
   "author": "an5ORM",
   "homepage": "https://github.com/an5ORM/an5OrmVScode",
@@ -134,6 +134,11 @@
         "title": "AN5: Refresh Schema Explorer",
         "category": "AN5 ORM",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "an5.agentSkills.sync",
+        "title": "AN5: Sync Agent Skills",
+        "category": "AN5"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -238,7 +243,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "generate:icons": "node scripts/generate-icons.js",
-    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js && node test/mcp.test.js && node --test test/mcp-regressions.test.js && node --test test/connections.test.js && node --test test/webview-browser.test.js",
+    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js && node test/mcp.test.js && node --test test/mcp-regressions.test.js && node --test test/connections.test.js && node --test test/webview-browser.test.js && node --test test/agent-skills.test.js",
     "package": "npx @vscode/vsce package --no-dependencies",
     "publish:marketplace": "npx @vscode/vsce publish --no-dependencies",
     "publish:openvsx": "npx ovsx publish",
@@ -251,7 +256,10 @@
     "@vscode/vsce": "^3.2.1",
     "ovsx": "1.2.0",
     "sharp": "^0.35.3",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@an5/orm": "^1.1.1",
+    "@an5/adapters": "^0.2.10",
+    "better-sqlite3": "^12.11.1"
   },
   "license": "MIT",
   "capabilities": {

@@ -90,7 +90,7 @@ test('Electron fallback supplies Node mode in both MCP definitions and installed
 test('isolated SQLite connection probe succeeds with project adapters', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-probe-'));
   fs.mkdirSync(path.join(root, 'node_modules', '@an5'), { recursive: true });
-  fs.symlinkSync(path.resolve(__dirname, '../../an5Adapters'), path.join(root, 'node_modules', '@an5', 'adapters'), 'dir');
+  fs.symlinkSync(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(root, 'node_modules', '@an5', 'adapters'), 'dir');
   try {
     const result = await testConnection(root, 'sqlite:./probe.sqlite');
     assert.equal(result.provider, 'sqlite');

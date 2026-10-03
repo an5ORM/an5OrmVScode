@@ -6,13 +6,13 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode">
-    <img src="https://img.shields.io/marketplace/vscode/vscode--marketplace/an5orm.an5--orm--vscode" alt="VS Code Marketplace version" />
+    <img src="https://img.shields.io/badge/VS_Code-Marketplace-007ACC" alt="VS Code Marketplace" />
   </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode">
-    <img src="https://img.shields.io/marketplace/d/total?itemName=an5orm.an5-orm-vscode" alt="Marketplace installs" />
+  <a href="https://github.com/an5ORM/an5OrmVScode/releases/latest">
+    <img src="https://img.shields.io/github/v/release/an5ORM/an5OrmVScode" alt="Latest GitHub release" />
   </a>
   <a href="https://open-vsx.org/extension/an5orm/an5-orm-vscode">
-    <img src="https://img.shields.io/open-vsx/vscode/an5orm/an5-orm-vscode" alt="Open VSX version" />
+    <img src="https://img.shields.io/open-vsx/v/an5orm/an5-orm-vscode" alt="Open VSX version" />
   </a>
 </p>
 
@@ -31,11 +31,11 @@ Published on the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 - **Snippets** — Quick code completion for common patterns
 - **MCP server** — Exposes the AN5 ORM to agentic clients such as GitHub Copilot
 
-## Connections and workspace UI (1.1.0)
+## Connections and workspace UI (1.2.0)
 
-Click the **AN5 ORM** database icon in the Activity Bar, then **Manage connections**.
+Click the **AN5** logo in the Activity Bar, then **Manage connections**.
 
-![AN5 connection manager with example profiles](media/connections-preview.png)
+![AN5 connection manager with automatic project connections and agent skill sync](media/connections-preview.png)
 
 Project connections appear automatically from `DATABASE_URL`, `.env` or
 `an5Orm.config.js/.cjs`; no import is required. Configured subprojects are discovered
@@ -319,3 +319,9 @@ subscription. After GitHub creates the release:
 The workflow summary includes direct release and VSIX download links. CI does not
 publish to the VS Code Marketplace automatically. A missing `VSCE_PAT` never
 fails this workflow. Do not commit tokens or pass them in command-line arguments.
+
+### Agent skills in your project
+
+Run **AN5: Sync Agent Skills** from the Command Palette, the AN5 actions sidebar or Connections. It uses the selected project (including nested AN5 projects) and writes `.agents/skills/an5-orm/SKILL.md` plus an AN5 section in `AGENTS.md`. The skill covers schemas, generated clients, provider adapters, connection scope, npm scripts and MCP tools. Agents that read `AGENTS.md` can follow its link even without automatic skill discovery.
+
+Sync preserves instructions outside the managed AN5 markers and refuses to overwrite an existing unmanaged skill. Run it again after upgrading the extension or changing project scripts. It does not evaluate ORM configuration, include credentials, install global skills or change database/MCP settings. Workspace Trust is required. Skill discovery varies by agent; restart its session if it has already loaded project instructions.

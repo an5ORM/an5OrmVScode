@@ -39,7 +39,7 @@ test('live table description works with SQLite and no schema files', async () =>
   const child = path.join(dir, 'nested'); fs.mkdirSync(child);
   const ws = { ...resolveWorkspace(child), connectionString, ormDir: undefined };
   fs.mkdirSync(path.join(dir, 'node_modules', '@an5'), { recursive: true });
-  fs.symlinkSync(path.resolve(__dirname, '../../an5Adapters'), path.join(dir, 'node_modules', '@an5', 'adapters'), 'dir');
+  fs.symlinkSync(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(dir, 'node_modules', '@an5', 'adapters'), 'dir');
   try {
     await adapter.exec('CREATE TABLE custom (key INTEGER PRIMARY KEY, value TEXT DEFAULT \'x\')');
     const tool = createTools(() => ws).find(t => t.name === 'an5_describe_table');
@@ -85,7 +85,7 @@ test('installed ORM schema models preserve relation targets, unique fields and s
   try {
     fs.mkdirSync(path.join(dir, 'an5Schema', 'nested'));
     fs.writeFileSync(path.join(dir, 'an5Schema', 'nested', 'other.an5'), 'model Nested {\n id INTEGER @id\n}');
-    const ws = { ...resolveWorkspace(dir), ormDir: path.resolve(__dirname, '../../an5Orm'), connectionString: 'sqlite::memory:' };
+    const ws = { ...resolveWorkspace(dir), ormDir: path.dirname(require.resolve('@an5/orm/package.json')), connectionString: 'sqlite::memory:' };
     const tools = Object.fromEntries(createTools(() => ws).map(t => [t.name, t]));
     const listed = JSON.parse(await tools.an5_list_models.handler({}));
     assert.equal(listed.totalModels, 3, 'Nested schema files must not be silently omitted');
@@ -119,7 +119,7 @@ test('MCP generation honors language/output and rejects symlink escapes', async 
   fs.writeFileSync(path.join(dir, 'an5Schema', 'model.an5'), 'model Example {\n id INTEGER @id\n value TEXT\n}');
   fs.mkdirSync(path.join(dir, 'untouched')); fs.writeFileSync(path.join(dir, 'untouched', 'keep.ts'), 'do not modify');
   fs.symlinkSync(outside, path.join(dir, 'escape'), 'dir');
-  const ws = { ...resolveWorkspace(dir), ormDir: path.resolve(__dirname, '../../an5Orm'), connectionString: 'sqlite::memory:', config: { outputs: { typescript: { outputDir: 'untouched', metadataFile: 'untouched/metadata.ts' } } } };
+  const ws = { ...resolveWorkspace(dir), ormDir: path.dirname(require.resolve('@an5/orm/package.json')), connectionString: 'sqlite::memory:', config: { outputs: { typescript: { outputDir: 'untouched', metadataFile: 'untouched/metadata.ts' } } } };
   const tool = createTools(() => ws).find(t => t.name === 'an5_generate_client');
   try {
     const result = JSON.parse(await tool.handler({ language: 'python', outputDir: 'generated/python', confirm: true }));

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { syncAgentSkills } from '../agent-skills';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
@@ -30,11 +31,22 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
       ['Manage connections', 'an5.connections.manage', 'database'], ['Open ORM configuration', 'an5.openConfig', 'settings-gear'],
       ['Generate client', 'an5.generate', 'gear'], ['Push schema', 'an5.push', 'cloud-upload'],
       ['Pull schema', 'an5.pull', 'cloud-download'], ['Configure MCP', 'an5.mcp.install', 'robot'],
+      ['Sync agent skills', 'an5.agentSkills.sync', 'book'],
       ['MCP servers', 'workbench.mcp.listServer', 'list-unordered'],
     ].map(([label, command, icon]) => { const item = new vscode.TreeItem(label); item.iconPath = new vscode.ThemeIcon(icon); item.command = { command, title: label }; return item; });
     this.disposables.push(vscode.window.registerTreeDataProvider('an5.actions', { getTreeItem: item => item, getChildren: () => actions }));
     this.disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()));
     const commands: Record<string, (...args: any[]) => unknown> = {
+      'an5.agentSkills.sync': async (target?: vscode.WorkspaceFolder) => {
+        this.requireTrust();
+        const folder = target || await this.pickFolder();
+        if (!folder) return;
+        try {
+          const changed = syncAgentSkills(folder.uri.fsPath, this.context.extensionPath);
+          vscode.window.showInformationMessage(changed.length ? `AN5 agent skills synced to ${folder.name}.` : 'AN5 agent skills are already up to date.');
+          await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.joinPath(folder.uri, 'AGENTS.md')));
+        } catch (error) { vscode.window.showErrorMessage((error as Error).message); }
+      },
       'an5.connections.manage': (entry?: Entry) => this.open(entry),
       'an5.connections.add': () => this.open(undefined, true),
       'an5.connections.refresh': () => this.refresh(),
@@ -200,7 +212,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
           await vscode.env.clipboard.writeText('connectionString: process.env.DATABASE_URL,');
           this.notify('Config reference copied. Paste inside module.exports in an5Orm.config.'); break;
         case 'action': {
-          const allowed: Record<string, string> = { config: 'an5.openConfig', generate: 'an5.generate', push: 'an5.push', pull: 'an5.pull', mcp: 'an5.mcp.install', servers: 'workbench.mcp.listServer' };
+          const allowed: Record<string, string> = { skills: 'an5.agentSkills.sync', config: 'an5.openConfig', generate: 'an5.generate', push: 'an5.push', pull: 'an5.pull', mcp: 'an5.mcp.install', servers: 'workbench.mcp.listServer' };
           if (m.action === 'schema') {
             this.requireTrust();
             const ws = resolveWorkspace(folder.uri.fsPath);

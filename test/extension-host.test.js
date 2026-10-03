@@ -9,11 +9,11 @@ exports.run = async function () {
   await extension.activate();
   assert.equal(extension.isActive, true);
   const commands = await vscode.commands.getCommands(true);
-  for (const command of ['an5.connections.manage', 'an5.connections.add', 'an5.connections.refresh', 'an5.connections.test', 'an5.mcp.install']) assert.ok(commands.includes(command), command);
+  for (const command of ['an5.connections.manage', 'an5.connections.add', 'an5.connections.refresh', 'an5.connections.test', 'an5.mcp.install', 'an5.agentSkills.sync']) assert.ok(commands.includes(command), command);
   await vscode.commands.executeCommand('workbench.view.extension.an5');
-  await vscode.commands.executeCommand('an5.connections.manage');
-  assert.ok(vscode.window.tabGroups.all.flatMap(g => g.tabs).some(t => t.label === 'AN5 · Connections'), 'Connection manager webview should open');
   const folder = vscode.workspace.workspaceFolders[0];
+  await vscode.commands.executeCommand('an5.connections.manage', {root: folder});
+  assert.ok(vscode.window.tabGroups.all.flatMap(g => g.tabs).some(t => t.label === 'AN5 · Connections'), 'Connection manager webview should open');
   await vscode.commands.executeCommand('an5.openConfig', folder);
   const schemaDir = path.join(folder.uri.fsPath, 'an5Schema');
   fs.mkdirSync(schemaDir, { recursive: true });
@@ -37,5 +37,8 @@ exports.run = async function () {
   const childFolder = reader.projects().find(p => p.uri.fsPath === child); assert.ok(childFolder);
   assert.equal(reader.projectFor(vscode.Uri.file(path.join(child, 'file.ts'))).uri.fsPath, child);
   assert.ok(commands.includes('workbench.mcp.listServer'), 'MCP server list command should exist');
+  await vscode.commands.executeCommand('an5.agentSkills.sync', childFolder);
+  assert.ok(fs.existsSync(path.join(child, '.agents/skills/an5-orm/SKILL.md')));
+  assert.ok(fs.readFileSync(path.join(child, 'AGENTS.md'), 'utf8').includes('.agents/skills/an5-orm/SKILL.md'));
   console.log('AN5 Extension Host: activation, Activity Bar, webview, schema navigation, config and MCP commands passed.');
 };
