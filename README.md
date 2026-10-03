@@ -19,29 +19,30 @@ The extension ships a [Model Context Protocol](https://modelcontextprotocol.io)
 server, so agentic clients can inspect your AN5 schema, run read-only queries
 and drive schema operations instead of guessing at your data model.
 
-On VS Code 1.101 or newer the server registers itself; open
-`MCP: List Servers` and look for **AN5 ORM**. On older versions, run
-**AN5: Show MCP Server Configuration** and paste the result into
-`.vscode/mcp.json`.
+On VS Code 1.101 or newer the server registers itself: open `MCP: List Servers`
+and start **AN5 ORM**. Nothing to copy, and no config file to edit.
 
-```json
-{
-  "servers": {
-    "an5-orm": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["<path-to-extension>/dist/mcp/server.js"],
-      "cwd": "${workspaceFolder}"
-    }
-  }
-}
-```
+If it does not appear — an older build, or an editor such as Cursor or VSCodium
+that predates the API — run **AN5: Install MCP Server** from the Command Palette
+(or click the status bar item and pick it). It writes the entry into the open
+workspace for you, with the extension path already resolved:
 
-For other MCP clients, run the server directly:
+- `.mcp.json` — the portable format, read by VS Code and other agent tools
+- `.vscode/mcp.json` — the VS Code format
 
-```bash
-node node_modules/an5-orm-vscode/dist/mcp/server.js
-```
+Your other servers and the rest of the file are left alone, running it twice
+changes nothing, and a file it cannot parse is reported rather than overwritten.
+
+The server is started with the editor's own Node binary rather than `node` from
+`PATH`, so a version-manager install works the same as a system one.
+
+To see the resolved configuration without writing it, run
+**AN5: Show MCP Server Configuration**.
+
+For another MCP client, point it at the server shipped in the installed
+extension — the paths `AN5: Show MCP Server Configuration` prints are the ones to
+use. The server is discoverable from there, not from `node_modules`: this
+extension is installed from the marketplace, not from npm.
 
 The server discovers the project from its working directory: it reads
 `an5Orm.config.js`, finds the `.an5` files, uses the installed `@an5/orm` for
@@ -79,11 +80,19 @@ so VS Code shows a confirmation dialog, **and** they require an explicit
 
 ## Installation
 
-### From VSIX
+### From the Marketplace
 
 ```bash
-code --install-extension an5-orm-vscode-1.0.2.vsix
+code --install-extension an5orm.an5-orm-vscode
 ```
+
+### From a VSIX
+
+```bash
+code --install-extension an5-orm-vscode-<version>.vsix
+```
+
+Build one with `npm run package`.
 
 ### From Source
 
@@ -186,8 +195,24 @@ node test/snippets.test.js
 
 # Grammar test
 node test/grammar.test.js
+# MCP server, definition and config merge
+node test/mcp.test.js
 ```
 
 ## License
 
 MIT
+
+## Automated releases
+
+Pull requests and pushes to `main` run a clean install, build, tests and VSIX packaging.
+To release, update `package.json` and `package-lock.json` to a new stable version,
+add its entry to `CHANGELOG.md`, then push to `main`. CI creates `v<version>`
+and a GitHub Release with the tested VSIX attached. An existing version on a
+different commit is left alone. Version tags and manual workflow runs also work.
+
+Marketplace publishing uses the same VSIX and requires the repository Actions
+secret `VSCE_PAT` (Azure DevOps token, Marketplace Manage scope, access to publisher
+`an5orm`). Missing credentials fail the publishing job explicitly; GitHub Release
+creation is independent. Re-run a failed job after configuring credentials.
+Do not commit tokens or pass them in command-line arguments.

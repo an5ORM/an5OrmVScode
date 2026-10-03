@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.0.6] - 2026-10-03
+
+### Fixed
+- **The MCP server never appeared in `MCP: List Servers`** — it was constructed with an
+  options object, but `McpStdioServerDefinition` takes positional arguments. `label` was
+  left holding an object and `command` undefined; VS Code validates that on its own
+  schedule, so the failure was swallowed and neither the server nor an error reached the
+  user. Registering the server was the documented path and it had never worked, which
+  left installing it as manual copy-paste.
+- **The server was missing from any workspace without an AN5 project** — extension-provided
+  MCP servers exist only once the extension activates, and it activated on
+  `workspaceContains` alone.
+- **The documented install command named a file that does not exist** — the README pointed
+  at a pinned `an5-orm-vscode-1.0.2.vsix` rather than the published extension id, and told
+  users to run a path under `node_modules` although the extension is not published to npm.
+
+### Added
+- `AN5: Install MCP Server` writes the entry into the open workspace with the extension
+  path already resolved, as `.mcp.json` (portable) or `.vscode/mcp.json`. Other servers and
+  the rest of the file are preserved, running it twice changes nothing, and a file it cannot
+  parse is reported rather than overwritten.
+- Both MCP commands are reachable from the status bar item, not only the Command Palette.
+
+### Changed
+- The server is started with the editor's own Node binary instead of `node` from `PATH`,
+  which the editor does not pass on, so a version-manager install works.
+- `cwd` is set from the folder VS Code asks about, and a folder opened after activation is
+  picked up, so multi-root and late-opened folders are no longer served a stale directory.
+- The server version is read from the manifest instead of a constant that had drifted to
+  `1.0.2`, so VS Code notices when the tools change.
+
 ## [1.0.5] - 2026-10-02
 
 ### Fixed

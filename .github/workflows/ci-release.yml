@@ -1,73 +1,146 @@
 name: CI and Extension Release
 
-permissions:
-  contents: write
-
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main]
   push:
-    branches: [main, master]
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      publish-marketplace:
-        description: 'Publish to VS Code Marketplace'
-        type: boolean
-        default: true
-      publish-openvsx:
-        description: 'Publish to Open VSX Registry'
-        type: boolean
-        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
-    name: Build & Test Extension
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm install
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm test
-      - run: npx @vscode/vsce package --no-dependencies
+      - name: Read and validate release version
+        id: version
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const version = require('./package.json').version;
+          if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Expected a stable semver version');
+          if (process.env.RELEASE_REF.startsWith('refs/tags/') && process.env.RELEASE_REF !== `refs/tags/v${version}`) {
+            throw new Error('Tag must match package.json version');
+          }
+          if (!fs.readFileSync('CHANGELOG.md', 'utf8').includes(`## [${version}]`)) throw new Error('Missing changelog');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          JS
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ steps.version.outputs.version }}
+          path: an5-orm-vscode-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
 
-  publish:
-    name: Publish Extension
+  release:
     needs: test
-    if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-${{ needs.test.outputs.version }}
+          path: artifacts
+      - name: Create version tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.test.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            test "$(git rev-parse "$tag^{commit}")" = "$GITHUB_SHA" || {
+              echo "Version already belongs to another commit; bump package.json to release again."
+              exit 0
+            }
+          else
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "$tag"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" artifacts/*.vsix --clobber
+          else
+            gh release create "$tag" artifacts/*.vsix --verify-tag --title "$tag" --generate-notes
+          fi
+
+  marketplace:
+    needs: [test, release]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Package VSIX
-        run: npx @vscode/vsce package --no-dependencies
-
-      - name: Publish to VS Code Marketplace
-        if: env.VSCE_PAT != '' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish-marketplace == 'true')
-        run: npx @vscode/vsce publish -p ${{ secrets.VSCE_PAT }}
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-${{ needs.test.outputs.version }}
+          path: artifacts
+      - name: Publish tested VSIX to Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VERSION: ${{ needs.test.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha')
+          if [ "$release_sha" != "$GITHUB_SHA" ]; then
+            echo "No new release for this commit."
+            exit 0
+          fi
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::Set repository secret VSCE_PAT with Marketplace Manage scope for publisher an5orm."
+            exit 1
+          fi
+          npx --no-install vsce publish --packagePath "artifacts/an5-orm-vscode-$VERSION.vsix" --skip-duplicate
 
-      - name: Publish to Open VSX Registry
-        if: env.OVSX_PAT != '' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish-openvsx == 'true')
-        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
+  openvsx:
+    needs: [test, release]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-${{ needs.test.outputs.version }}
+          path: artifacts
+      - name: Publish to Open VSX when configured
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-
-      - name: Create GitHub Release & Upload VSIX Asset
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: '*.vsix'
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-
+          VERSION: ${{ needs.test.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha')
+          if [ "$release_sha" != "$GITHUB_SHA" ] || [ -z "$OVSX_PAT" ]; then
+            echo "No new release or Open VSX credentials are not configured."
+            exit 0
+          fi
+          npx --no-install ovsx publish "artifacts/an5-orm-vscode-$VERSION.vsix" --skip-duplicate

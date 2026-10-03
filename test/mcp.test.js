@@ -51,9 +51,62 @@ test('the provider id matches the one registered in the extension', () => {
   assert.ok(source.includes('McpStdioServerDefinition'), 'Expected a stdio server definition');
 });
 
+test('builds the stdio definition with positional arguments, not an options object', () => {
+  // This is the mistake that kept the server from ever appearing: the API is
+  // `constructor(label, command, args, env, version)`, and an options object left
+  // `label` holding an object and `command` undefined. VS Code validated that
+  // inside a `setTimeout`, so the throw was swallowed and nothing surfaced. An
+  // options object here is the bug, so it is asserted against on the compiled
+  // output rather than described in a comment.
+  const compiled = fs.readFileSync(path.join(root, 'dist', 'extension.js'), 'utf8');
+  assert.ok(
+    !/new\s+(?:vscode\.)?McpStdioServerDefinition\s*\(\s*\{/.test(compiled),
+    'McpStdioServerDefinition takes positional arguments, not an options object',
+  );
+  assert.ok(
+    /new\s+(?:vscode\.)?McpStdioServerDefinition\s*\(\s*spec\.label\s*,/.test(compiled),
+    'Expected the label to be passed as the first positional argument',
+  );
+});
+
+test('derives the server version from the manifest instead of repeating it', () => {
+  // A constant that drifts from package.json stops VS Code noticing that the
+  // tools changed, so the cache nonce has to come from the manifest.
+  const source = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.ok(!/MCP_SERVER_VERSION\s*=\s*'/.test(source), 'Do not hardcode the MCP server version');
+});
+
+test('types the MCP API so a wrong call cannot compile', () => {
+  // @types/vscode below the version that declares the MCP API is what forced the
+  // extension to cast the call away, and the cast is what hid the mistake.
+  const minimum = packageJson.devDependencies['@types/vscode'];
+  assert.ok(
+    minimum === '^1.101.0',
+    `Expected @types/vscode to match engines.vscode (^1.101.0), found ${minimum}`,
+  );
+  const source = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.ok(
+    !/as unknown as \{[^}]*McpStdioServerDefinition/.test(source),
+    'Do not cast away the type of McpStdioServerDefinition',
+  );
+});
+
 test('declares an MCP configuration command', () => {
   const commands = packageJson.contributes.commands.map((c) => c.command);
   assert.ok(commands.includes('an5.mcp.showConfig'));
+  assert.ok(
+    commands.includes('an5.mcp.install'),
+    'Expected a command that writes the server into a config file',
+  );
+});
+
+test('activates without an AN5 project in the workspace', () => {
+  // The MCP provider only exists once the extension activates, and `workspaceContains`
+  // alone left the server absent from any workspace that had not been set up yet.
+  assert.ok(
+    packageJson.activationEvents.includes('onStartupFinished'),
+    'Expected onStartupFinished so the MCP provider is registered on startup',
+  );
 });
 
 test('relies on inferred activation events for its commands', () => {
@@ -72,7 +125,136 @@ test('ships the compiled MCP server', () => {
   assert.ok(!ignore.includes('dist/**\n'), 'dist must not be excluded from the package');
 });
 
-// ─── Protocol layer ───────────────────────────────────────────────────────────
+// ─── Definition and config merge ──────────────────────────────────────────────
+//
+// Installing used to mean copying a snippet with an unresolved
+// `<path-to-extension>` placeholder into `mcp.json` by hand. These cover the two
+// things that made that error-prone: the resolved values, and a merge that cannot
+// lose a server the user already has.
+
+console.log('\nDefinition:');
+
+const definition = require(path.join(distDir, 'definition.js'));
+
+const extensionPath = path.resolve(root);
+const nodePath = '/usr/bin/node';
+const projectDir = '/home/dev/project';
+const serverPath = definition.serverEntryPath(extensionPath);
+
+test('points at a server entry point that exists in the built extension', () => {
+  assert.strictEqual(serverPath, path.join(extensionPath, 'dist', 'mcp', 'server.js'));
+  assert.ok(fs.existsSync(serverPath), `Expected ${serverPath} to exist`);
+});
+
+test('describes a server VS Code can launch', () => {
+  const spec = definition.stdioSpec({ extensionPath, nodePath, cwd: projectDir, version: '1.0.5' });
+
+  assert.strictEqual(spec.label, 'AN5 ORM');
+  assert.strictEqual(typeof spec.label, 'string', 'VS Code validates that label is a string');
+
+  // An absolute node binary, not `'node'`: the editor starts the server without a
+  // shell, so no PATH the user configured applies, and a version-manager node
+  // would not be found.
+  assert.strictEqual(spec.command, nodePath);
+  assert.ok(path.isAbsolute(spec.command), 'Expected an absolute command path');
+
+  assert.deepStrictEqual(spec.args, [serverPath]);
+  assert.ok(fs.existsSync(spec.args[0]), 'Expected the server script to exist');
+  assert.strictEqual(spec.cwd, projectDir);
+  assert.strictEqual(spec.version, '1.0.5');
+});
+
+test('omits the optional parts instead of emitting empty ones', () => {
+  const spec = definition.stdioSpec({ extensionPath, nodePath });
+  assert.ok(!('cwd' in spec), 'Expected no cwd when no folder is open');
+  assert.ok(!('version' in spec), 'Expected no version when the manifest has none');
+
+  const entry = definition.mcpJsonEntry(spec);
+  assert.ok(!('cwd' in entry), 'Expected no cwd in the config entry either');
+  assert.strictEqual(entry.type, 'stdio');
+  assert.strictEqual(entry.command, nodePath);
+});
+
+test('keeps each config format under the property it is read from', () => {
+  assert.strictEqual(definition.serversKey('.mcp.json'), 'mcpServers');
+  assert.strictEqual(definition.serversKey('.vscode/mcp.json'), 'servers');
+});
+
+console.log('\nConfig merge:');
+
+const entry = { type: 'stdio', command: nodePath, args: [serverPath], cwd: projectDir };
+
+test('creates the file when there is nothing to merge into', () => {
+  const result = definition.mergeServerEntry('', 'an5-orm', entry, '.mcp.json');
+  assert.ok(result.created);
+  assert.ok(result.changed);
+  const parsed = JSON.parse(result.text);
+  assert.deepStrictEqual(parsed.mcpServers['an5-orm'], entry);
+  assert.ok(result.text.endsWith('\n'), 'Expected a trailing newline');
+});
+
+test('keeps the servers already in the file', () => {
+  const existing = JSON.stringify(
+    { mcpServers: { github: { type: 'http', url: 'https://example.test/mcp' } } },
+    null,
+    2,
+  );
+  const parsed = JSON.parse(definition.mergeServerEntry(existing, 'an5-orm', entry, '.mcp.json').text);
+  assert.deepStrictEqual(parsed.mcpServers.github, { type: 'http', url: 'https://example.test/mcp' });
+  assert.deepStrictEqual(parsed.mcpServers['an5-orm'], entry);
+});
+
+test('keeps the other settings in the file', () => {
+  const existing = JSON.stringify({ inputs: [{ id: 'token' }], mcpServers: {} }, null, 2);
+  const parsed = JSON.parse(definition.mergeServerEntry(existing, 'an5-orm', entry, '.mcp.json').text);
+  assert.deepStrictEqual(parsed.inputs, [{ id: 'token' }]);
+});
+
+test('writes into the right property for .vscode/mcp.json', () => {
+  const parsed = JSON.parse(definition.mergeServerEntry('', 'an5-orm', entry, '.vscode/mcp.json').text);
+  assert.deepStrictEqual(parsed.servers['an5-orm'], entry);
+  assert.ok(!('mcpServers' in parsed), 'Expected only the VS Code property');
+});
+
+test('changes nothing when the entry already matches', () => {
+  const existing = `${JSON.stringify({ mcpServers: { 'an5-orm': entry } }, null, 2)}\n`;
+  const result = definition.mergeServerEntry(existing, 'an5-orm', entry, '.mcp.json');
+  assert.strictEqual(result.changed, false);
+  assert.strictEqual(result.text, existing, 'Expected the file to be left byte for byte');
+});
+
+test('updates the entry when the server moved to a new extension version', () => {
+  const stale = { ...entry, args: ['/home/dev/.vscode/extensions/an5orm.an5-orm-vscode-1.0.4/dist/mcp/server.js'] };
+  const existing = `${JSON.stringify({ mcpServers: { 'an5-orm': stale } }, null, 2)}\n`;
+  const result = definition.mergeServerEntry(existing, 'an5-orm', entry, '.mcp.json');
+  assert.ok(result.changed, 'Expected a stale path to be rewritten');
+  assert.deepStrictEqual(JSON.parse(result.text).mcpServers['an5-orm'].args, entry.args);
+});
+
+test('refuses to overwrite a file it cannot parse', () => {
+  // The file is the user's, and the only way to "fix" unreadable JSON here would
+  // be to destroy whatever they were editing — including comments, which
+  // JSON.parse cannot see and which users do write in mcp.json.
+  const broken = '{ // our servers\n  "mcpServers": {}\n';
+  assert.throws(
+    () => definition.mergeServerEntry(broken, 'an5-orm', entry, '.mcp.json'),
+    (error) => error instanceof definition.McpJsonError && /not valid JSON/.test(error.message),
+  );
+});
+
+test('refuses to replace a servers property that is not an object', () => {
+  assert.throws(
+    () => definition.mergeServerEntry('{"mcpServers": []}', 'an5-orm', entry, '.mcp.json'),
+    (error) => error instanceof definition.McpJsonError && /not an object/.test(error.message),
+  );
+});
+
+test('refuses a document that is not a JSON object', () => {
+  assert.throws(
+    () => definition.mergeServerEntry('[]', 'an5-orm', entry, '.mcp.json'),
+    (error) => error instanceof definition.McpJsonError && /top level/.test(error.message),
+  );
+});
 
 console.log('\nProtocol:');
 
