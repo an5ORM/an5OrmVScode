@@ -211,8 +211,22 @@ add its entry to `CHANGELOG.md`, then push to `main`. CI creates `v<version>`
 and a GitHub Release with the tested VSIX attached. An existing version on a
 different commit is left alone. Version tags and manual workflow runs also work.
 
-Marketplace publishing uses the same VSIX and requires the repository Actions
-secret `VSCE_PAT` (Azure DevOps token, Marketplace Manage scope, access to publisher
-`an5orm`). Missing credentials fail the publishing job explicitly; GitHub Release
-creation is independent. Re-run a failed job after configuring credentials.
-Do not commit tokens or pass them in command-line arguments.
+Open VSX publishing uses the same tested VSIX and the repository Actions secret
+`OVSX_PAT`. It publishes automatically when that secret is configured.
+
+### VS Code Marketplace (manual upload, no Azure billing)
+
+Marketplace publishing uses your browser login, without `VSCE_PAT` or an Azure
+subscription. After GitHub creates the release:
+
+1. Download `an5-orm-vscode-<version>.vsix` from the
+   [GitHub Release](https://github.com/an5ORM/an5OrmVScode/releases).
+2. Open [publisher an5orm](https://marketplace.visualstudio.com/manage/publishers/an5orm).
+3. Select **More Actions → Update** for AN5 ORM Schema Tooling.
+4. Choose the downloaded VSIX and click **Upload**.
+5. Wait for verification and confirm the new version on the
+   [public Marketplace page](https://marketplace.visualstudio.com/items?itemName=an5orm.an5-orm-vscode).
+
+The workflow summary includes direct release and VSIX download links. CI does not
+publish to the VS Code Marketplace automatically. A missing `VSCE_PAT` never
+fails this workflow. Do not commit tokens or pass them in command-line arguments.

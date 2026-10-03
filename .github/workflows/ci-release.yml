@@ -85,37 +85,25 @@ jobs:
             gh release create "$tag" artifacts/*.vsix --verify-tag --title "$tag" --generate-notes
           fi
 
-  marketplace:
+  marketplace-instructions:
+    name: Manual Marketplace upload instructions
     needs: [test, release]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - uses: actions/download-artifact@v4
-        with:
-          name: extension-${{ needs.test.outputs.version }}
-          path: artifacts
-      - name: Publish tested VSIX to Marketplace
+      - name: Show Marketplace upload links
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
           VERSION: ${{ needs.test.outputs.version }}
-          GH_TOKEN: ${{ github.token }}
         run: |
-          release_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha')
-          if [ "$release_sha" != "$GITHUB_SHA" ]; then
-            echo "No new release for this commit."
-            exit 0
-          fi
-          if [ -z "$VSCE_PAT" ]; then
-            echo "::error::Set repository secret VSCE_PAT with Marketplace Manage scope for publisher an5orm."
-            exit 1
-          fi
-          npx --no-install vsce publish --packagePath "artifacts/an5-orm-vscode-$VERSION.vsix" --skip-duplicate
+          {
+            echo "## VS Code Marketplace: manual upload"
+            echo "GitHub Release and Open VSX publishing are automated."
+            echo "Marketplace upload uses your browser login; no VSCE_PAT or Azure billing is required."
+            echo "1. Download the tested [VSIX](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/an5-orm-vscode-$VERSION.vsix) from [release v$VERSION](https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VERSION)."
+            echo "2. Open [publisher an5orm](https://marketplace.visualstudio.com/manage/publishers/an5orm)."
+            echo "3. Select **More Actions → Update**, choose the VSIX and click **Upload**."
+            echo "4. Wait for verification, then check the public extension page shows version $VERSION."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   openvsx:
     needs: [test, release]
