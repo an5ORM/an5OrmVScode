@@ -5,8 +5,8 @@
       <stop offset="100%" stop-color="#6366F1"/>
     </linearGradient>
   </defs>
-  <!-- AN5 Badge matching exact header proportions and radius -->
   <rect x="5" y="24" width="90" height="52" rx="8" ry="8" fill="url(#an5-gradient)"/>
-  <!-- AN5 Text optically & mathematically centered -->
-  <text x="50.5" y="62" font-family="Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="34" font-weight="900" fill="#FFFFFF" text-anchor="middle">AN5</text>
+  <g transform="translate(12.29 62.02)" fill="#FFFFFF">
+    <path d="M19.51 0L17.97-4.47L8.08-4.47L6.52 0L0.16 0L9.25-24.52L16.79-24.52L25.87 0L19.51 0ZM13.03-18.77L9.66-9.02L16.38-9.02L13.03-18.77Z M29.12 0L29.12-24.52L36.19-24.52L45.11-7.70L45.11-24.52L51.10-24.52L51.10 0L44.04 0L35.12-16.82L35.12 0L29.12 0Z M57.75-10.73L57.75-24.52L73.47-24.52L73.47-19.88L62.80-19.88L62.80-16.08Q63.52-16.28 64.25-16.38Q64.98-16.49 65.77-16.49L65.77-16.49Q70.25-16.49 72.75-14.25Q75.25-12.01 75.25-8.00L75.25-8.00Q75.25-4.02 72.53-1.77Q69.81 0.48 64.98 0.48L64.98 0.48Q62.89 0.48 60.85 0.07Q58.80-0.33 56.78-1.15L56.78-1.15L56.78-6.13Q58.79-4.98 60.59-4.40Q62.39-3.83 63.98-3.83L63.98-3.83Q66.28-3.83 67.60-4.95Q68.92-6.08 68.92-8.00L68.92-8.00Q68.92-9.94 67.60-11.05Q66.28-12.17 63.98-12.17L63.98-12.17Q62.61-12.17 61.07-11.82Q59.53-11.47 57.75-10.73L57.75-10.73Z"/>
+  </g>
 </svg>

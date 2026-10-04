@@ -1,76 +1,62 @@
 #!/usr/bin/env node
 /**
- * Script to generate AN5 icons in multiple SVG and PNG sizes.
- * Usage: node scripts/generate-icons.js
+ * Regenerate this extension's icons from the shared AN5 brand tokens.
+ *
+ * The generator lives in the an5Brand submodule so every AN5 repository produces
+ * the same artwork from one source. Icons stay committed in ./icons, so building
+ * or packaging the extension never needs the submodule — only regeneration does.
+ *
+ * Usage: node scripts/generate-icons.js [--sizes 16,24,32] [--no-png]
+ *
+ * Set AN5_BRAND_PATH to point at an an5Brand checkout outside the monorepo.
  */
 
 const fs = require('fs');
 const path = require('path');
-const sharp = require('sharp');
 
-const SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
 const ICONS_DIR = path.resolve(__dirname, '..', 'icons');
 
-if (!fs.existsSync(ICONS_DIR)) {
-  fs.mkdirSync(ICONS_DIR, { recursive: true });
-}
+function resolveBrand() {
+  const candidates = [];
+  if (process.env.AN5_BRAND_PATH) candidates.push(path.resolve(process.env.AN5_BRAND_PATH));
 
-function generateSvg(size) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${size}" height="${size}">
-  <defs>
-    <linearGradient id="an5-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38BDF8"/>
-      <stop offset="100%" stop-color="#6366F1"/>
-    </linearGradient>
-  </defs>
-  <!-- AN5 Badge matching exact header proportions and radius -->
-  <rect x="5" y="24" width="90" height="52" rx="8" ry="8" fill="url(#an5-gradient)"/>
-  <!-- AN5 Text optically & mathematically centered -->
-  <text x="50.5" y="62" font-family="Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="34" font-weight="900" fill="#FFFFFF" text-anchor="middle">AN5</text>
-</svg>
-`;
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    candidates.push(path.join(dir, 'an5Brand'));
+    candidates.push(path.join(dir, '..', 'an5Brand'));
+    dir = path.dirname(dir);
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'tokens.json'))) return candidate;
+  }
+
+  throw new Error([
+    'Could not locate the an5Brand submodule, which provides the shared brand tokens.',
+    'Initialise it with: git submodule update --init an5Brand',
+    'Or set AN5_BRAND_PATH to an existing an5Brand checkout.',
+  ].join('\n'));
 }
 
 async function main() {
-  console.log('🚀 Generating AN5 icons in multiple SVG & PNG sizes...\n');
+  const brandRoot = resolveBrand();
+  const brand = require(path.join(brandRoot, 'scripts', 'generate-icons.js'));
 
-  // The Activity Bar renders SVGs as monochrome masks; brand letters must be transparent.
-  fs.writeFileSync(path.join(ICONS_DIR, 'activity.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="24" height="24">\n  <!-- AN5 brand proportions; knockout letters remain visible in VS Code\'s monochrome icon mask. -->\n  <defs>\n    <mask id="an5-letters" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">\n      <rect x="5" y="5" width="90" height="90" rx="20" fill="white"/>\n      <text x="50.5" y="62" font-family="Arial, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, sans-serif" font-size="34" font-weight="800" text-anchor="middle" fill="black">AN5</text>\n    </mask>\n  </defs>\n  <rect x="5" y="5" width="90" height="90" rx="20" fill="#c5c5c5" mask="url(#an5-letters)"/>\n</svg>\n');
-
-  for (const size of SIZES) {
-    const svgContent = generateSvg(size);
-    const svgFilename = `an5-${size}x${size}.svg`;
-    const pngFilename = `an5-${size}x${size}.png`;
-
-    const svgPath = path.join(ICONS_DIR, svgFilename);
-    const pngPath = path.join(ICONS_DIR, pngFilename);
-
-    // Save SVG file
-    fs.writeFileSync(svgPath, svgContent, 'utf8');
-
-    // Convert SVG to PNG using sharp
-    await sharp(Buffer.from(svgContent))
-      .resize(size, size)
-      .png()
-      .toFile(pngPath);
-
-    console.log(`  ✓ Generated ${svgFilename} & ${pngFilename}`);
-
-    // Create default an5.svg and an5.png (24x24)
-    if (size === 24) {
-      fs.writeFileSync(path.join(ICONS_DIR, 'an5.svg'), svgContent, 'utf8');
-      await sharp(Buffer.from(svgContent))
-        .resize(24, 24)
-        .png()
-        .toFile(path.join(ICONS_DIR, 'an5.png'));
-      console.log(`  ✓ Generated default an5.svg & an5.png (24x24)`);
-    }
+  const argv = process.argv.slice(2);
+  const options = { outDir: ICONS_DIR };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--sizes') options.sizes = argv[++i].split(',').map(Number);
+    else if (argv[i] === '--no-png') options.png = false;
+    else if (argv[i] === '--quiet') options.quiet = true;
+    else throw new Error(`Unknown argument: ${argv[i]}`);
   }
 
-  console.log(`\n✨ Successfully generated ${SIZES.length * 2 + 2} icon files in ${ICONS_DIR}`);
+  console.log(`🎨 Using AN5 brand tokens from ${brandRoot}\n`);
+  const { count } = await brand.generate(options);
+  console.log(`\n✨ Generated ${count} icon files in ${ICONS_DIR}`);
 }
 
 main().catch((err) => {
-  console.error('❌ Error generating icons:', err);
+  console.error('❌ Error generating icons:', err.message);
   process.exit(1);
 });
