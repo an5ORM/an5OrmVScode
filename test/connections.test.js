@@ -106,9 +106,9 @@ test('project command plans keep workspace cwd and do not retry failed scripts',
   try {
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { 'db:migrate:rollback': 'node rollback.js' } }));
     const ws = { root, ormDir: '/dependency/orm', connectionString: 'sqlite:test.sqlite' };
-    const plan = projectCommand(ws, 'db:migrate:rollback', ['2', '--dry-run']);
+    const plan = projectCommand(ws, 'db:migrate:rollback', ['2', '--preview']);
     assert.equal(plan.cwd, root);
-    assert.deepEqual(plan.args, ['run', 'db:migrate:rollback', '--', '2', '--dry-run']);
+    assert.deepEqual(plan.args, ['run', 'db:migrate:rollback', '--', '2', '--preview']);
     assert.equal(plan.env.DATABASE_URL, 'sqlite:test.sqlite');
     assert.throws(() => projectCommand(ws, 'db:push'), /does not provide a runnable/);
     const entry = path.join(root, 'orm', 'dist', 'generator', 'src', 'index.js');

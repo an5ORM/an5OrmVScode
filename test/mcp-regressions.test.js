@@ -105,8 +105,9 @@ test('migration script runs in workspace with a single argument delimiter and se
   try {
     const ws = { ...resolveWorkspace(dir), ormDir: undefined, connectionString: 'sqlite:temporary.sqlite' };
     const tool = createTools(() => ws).find(t => t.name === 'an5_migrate');
-    const result = await tool.handler({ action: 'rollback', steps: 2, dryRun: true, confirm: true });
-    assert.match(result, /AN5_ARGS=\["--dry-run","2"\]/);
+    await assert.rejects(tool.handler({ action: 'rollback', unknownOption: true, confirm: true }), /Unknown migration option/);
+    const result = await tool.handler({ action: 'rollback', steps: 2, preview: true, confirm: true });
+    assert.match(result, /AN5_ARGS=\["--preview","2"\]/);
     assert.ok(result.includes(`AN5_ROOT=${dir}`));
     assert.ok(result.includes('AN5_ENV=sqlite:temporary.sqlite'));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

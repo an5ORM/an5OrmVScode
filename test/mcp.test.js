@@ -293,7 +293,7 @@ test('notifications get no response', async () => {
 test('tools/list returns every tool with a JSON Schema', async () => {
   const res = await handleRequest({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, serverOptions);
   const list = res.result.tools;
-  assert.strictEqual(list.length, 13);
+  assert.strictEqual(list.length, 14);
   for (const tool of list) {
     assert.ok(tool.name.startsWith('an5_'), `Tool name should be prefixed: ${tool.name}`);
     assert.ok(tool.description && tool.description.length > 20, `${tool.name} needs a description`);
@@ -304,7 +304,7 @@ test('tools/list returns every tool with a JSON Schema', async () => {
 test('read-only tools are annotated so the client skips confirmation', async () => {
   const res = await handleRequest({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, serverOptions);
   const byName = Object.fromEntries(res.result.tools.map((t) => [t.name, t]));
-  for (const name of ['an5_list_models', 'an5_describe_model', 'an5_query_database', 'an5_analyze_schema']) {
+  for (const name of ['an5_list_models', 'an5_describe_model', 'an5_query_database', 'an5_analyze_schema', 'an5_generate_code']) {
     assert.strictEqual(byName[name].annotations.readOnlyHint, true, `${name} should be read-only`);
   }
 });

@@ -311,6 +311,21 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
     },
 
     {
+      name: 'an5_generate_code',
+      description: 'Prepare application code for a user request in the project language. Returns schema and real generated API references for YOU, the calling model, to write the requested snippet. This tool does not itself invoke an LLM, write files or execute SQL. Choose an explicit language for multilingual workspaces.',
+      inputSchema: { type: 'object', properties: { request: { type: 'string' }, language: { type: 'string', enum: ['auto', 'typescript', 'python', 'dotnet', 'golang', 'rust'] } }, required: ['request'], additionalProperties: false },
+      annotations: { title: 'Generate AN5 application code', ...readOnly },
+      async handler(args) {
+        const ws = resolve();
+        if (!ws.ormDir) throw new Error('Install @an5/orm with prepareCodeRequest support in the project');
+        const api = require(path.join(ws.ormDir, 'dist', 'generator', 'src', 'api.js'));
+        if (typeof api.prepareCodeRequest !== 'function') throw new Error('Installed @an5/orm lacks prepareCodeRequest; upgrade the ORM');
+        const provider = ws.connectionString ? (/^(sqlite:|:memory:$)/i.test(ws.connectionString) ? 'sqlite' : api.detectProvider(ws.connectionString)) : undefined;
+        return json(await api.prepareCodeRequest({ request: args.request, language: args.language || 'auto', projectRoot: ws.root, schemaPath: ws.schemaDir, schemaFiles: ws.schemaFiles, provider }));
+      },
+    },
+
+    {
       name: 'an5_generate_client',
       description:
         'Generate typed client code from the .an5 schema for TypeScript, Python, .NET, Go or Rust using the installed @an5/orm generator. Writes files to the workspace.',
@@ -386,7 +401,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
             enum: ['diff', 'generate', 'apply', 'rollback', 'status'],
           },
           steps: { type: 'number', description: 'Number of migrations to roll back' },
-          dryRun: { type: 'boolean', description: 'Preview SQL without executing it', default: false },
+          preview: { type: 'boolean', description: 'Preview SQL without executing it', default: false },
           confirm: { type: 'boolean', description: CONFIRM_HELP, default: false },
         },
         required: ['action', 'confirm'],
@@ -394,6 +409,8 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
       annotations: {
         title: 'Run an AN5 migration action', destructiveHint: true, openWorldHint: true },
       async handler(args) {
+        const allowedOptions = ['action', 'steps', 'preview', 'confirm'];
+        if (Object.keys(args).some(key => !allowedOptions.includes(key))) throw new Error('Unknown migration option; use preview to inspect SQL');
         const action = String(args.action);
         const mutating = action === 'apply' || action === 'rollback';
         // read-only actions still require confirmation so the model states intent
@@ -405,7 +422,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
 
         const ws = resolve();
         const extra: string[] = [];
-        if (mutating && args.dryRun === true) extra.push('--dry-run');
+        if (mutating && args.preview === true) extra.push('--preview');
         if (action === 'rollback' && typeof args.steps === 'number') {
           extra.push(String(args.steps));
         }

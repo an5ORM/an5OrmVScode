@@ -10,7 +10,9 @@ export function providerOf(value: string): string {
   if (/^(?:mysql|mariadb):\/\//i.test(cs)) return 'mysql';
   if (/^(sqlite:|:memory:$)/i.test(cs) || /\.(sqlite|sqlite3|db)$/i.test(cs)) return 'sqlite';
   if (/^(mssql|sqlserver):\/\//i.test(cs) || /(?:^|;)\s*(server|data source)\s*=/i.test(cs)) return 'mssql';
-  throw new Error('Use a SQL Server, PostgreSQL, MySQL or SQLite connection string.');
+  if (/^googlesheets:\/\//i.test(cs)) return 'googlesheets';
+  if (/^nbase:\/\//i.test(cs)) return 'nbase';
+  throw new Error('Use a SQL Server, PostgreSQL, MySQL, SQLite, Google Sheets or NBase connection string.');
 }
 
 /** Metadata belongs to the workspace; connection strings only belong to SecretStorage. */

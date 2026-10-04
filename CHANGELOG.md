@@ -1,11 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-10-04
+
+- Resolve the TypeScript compiler from either a standalone checkout or the monorepo when building and packaging.
+
+- Add editable project schema/client paths, guided connection presets, clearer storage choices and safer raw URI editing.
+- Add Google Desktop OAuth setup/import, browser sign-in with PKCE and spreadsheet selection. Keep OAuth credentials in SecretStorage; desktop sign-in requires a local VS Code window.
+
+- Rename MCP migration preview input to `preview` and forward `--preview` to the ORM; reject unsupported argument keys before running project commands.
+
+- Add read-only `an5_generate_code` MCP tool supplying user-request context, workspace language, schema and generated APIs for the calling model.
 
 ### Changed
 - Take every logo from the new `an5Brand` submodule, so this extension and the other AN5 repositories render the same organisation wordmark from one source of truth.
 - Regenerate the icon set with the shared generator instead of a local copy. `npm run generate:icons` needs the submodule; `npm run check:icons` fails when a committed icon drifts from the brand tokens. Building and packaging the extension are unchanged, because the icons stay committed.
 - Render the wordmark as vector outlines taken from a vendored font subset instead of a live `<text>` element. Font availability previously changed the letter weight per machine, so the SVGs disagreed with the PNGs rendered from them; rendering is now identical everywhere.
+- Embolden the wordmark via the `wordmark.embolden` brand token, so the letters carry the weight of the original artwork.
+- Derive the Connections webview theme colours from the same brand tokens, replacing five hardcoded hex literals with `var(--an5-gradient-*)`.
+- `npm run check:icons` now also verifies the webview stylesheet carries the current token block.
 
 ### Fixed
 - Use the rectangular organisation badge in the Activity Bar and the Connections editor tab, matching the Connections header and the Marketplace listing. This reverses the rounded square badge introduced in 1.1.3, which did not match the organisation wordmark.
@@ -136,4 +148,3 @@
 ## [1.0.0] - 2026-07-04
 
 - Initial release
-

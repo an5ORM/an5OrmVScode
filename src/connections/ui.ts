@@ -2,12 +2,15 @@ import * as vscode from 'vscode';
 import { syncAgentSkills } from '../agent-skills';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { projectConnection, projectRoots } from './project';
-import { ConnectionStore, ConnectionProfile } from './store';
+import { ConnectionStore, ConnectionProfile, providerOf } from './store';
 import { nodeRuntime } from '../node-runtime';
 import { testConnection, normalizeConnectionString } from './runtime';
+import { saveConnectionToEnv, saveConnectionToConfig } from './project-writer';
 import { resolveWorkspace } from '../mcp/workspace';
+import { projectSettings, saveProjectSettings } from './project-settings';
+import { authorizeGoogle, GoogleClient, googleConnection, googleSpreadsheets, parseGoogleClient } from './google-oauth';
 
 interface Entry { root: vscode.WorkspaceFolder; profile?: ConnectionProfile; action?: string }
 
@@ -20,6 +23,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
   private panel?: vscode.WebviewPanel;
   private folder?: vscode.WorkspaceFolder;
   private selectedId?: string;
+  private configureMode = false;
   private busy = false;
   private projectCache?: vscode.WorkspaceFolder[];
   private readonly statuses = new Map<string, string>();
@@ -48,6 +52,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
         } catch (error) { vscode.window.showErrorMessage((error as Error).message); }
       },
       'an5.connections.manage': (entry?: Entry) => this.open(entry),
+      'an5.connections.configure': (entry?: Entry) => this.open(entry, true),
       'an5.connections.add': () => this.open(undefined, true),
       'an5.connections.refresh': () => this.refresh(),
       'an5.connections.test': (entry: Entry) => this.test(entry),
@@ -76,8 +81,13 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
       item.iconPath = new vscode.ThemeIcon('root-folder'); return item;
     }
     if (entry.action) {
-      const item = new vscode.TreeItem(entry.action === 'configure' ? 'Configure project connection' : 'Manage connections'); item.iconPath = new vscode.ThemeIcon('settings-gear');
-      item.command = entry.action === 'configure' ? { command: 'an5.openConfig', title: 'Configure connection', arguments: [entry.root] } : { command: 'an5.connections.manage', title: 'Manage connections', arguments: [entry] }; return item;
+      const isConfigure = entry.action === 'configure';
+      const item = new vscode.TreeItem(isConfigure ? 'Configure project connection' : 'Manage connections');
+      item.iconPath = new vscode.ThemeIcon(isConfigure ? 'plug' : 'settings-gear');
+      item.command = isConfigure
+        ? { command: 'an5.connections.configure', title: 'Configure project connection', arguments: [entry] }
+        : { command: 'an5.connections.manage', title: 'Manage connections', arguments: [entry] };
+      return item;
     }
     const profile = entry.profile!;
     const activeId = this.store.list(entry.root.uri.toString()).activeId;
@@ -140,6 +150,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     const folder = entry?.root || (vscode.window.activeTextEditor && this.projectFor(vscode.window.activeTextEditor.document.uri)) || this.folder || await this.pickFolder();
     if (!folder) return;
     this.folder = folder; this.selectedId = add ? undefined : entry?.profile?.id;
+    this.configureMode = add || entry?.action === 'configure';
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel('an5.connectionManager', 'AN5 · Connections', vscode.ViewColumn.One, {
         enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media'), vscode.Uri.joinPath(this.context.extensionUri, 'icons')],
@@ -164,14 +175,17 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     const folder = this.folder;
     const state = this.store.list(folder.uri.toString());
     const configPath = ['an5Orm.config.js', 'an5Orm.config.cjs'].find(name => fs.existsSync(path.join(folder.uri.fsPath, name)));
+    const settings = vscode.workspace.isTrusted ? projectSettings(resolveWorkspace(folder.uri.fsPath).config) : undefined;
+    const googleConfigured = !!await this.context.secrets.get(this.googleClientKey(folder));
     await this.panel.webview.postMessage({ type: 'state', workspace: folder.name, root: folder.uri.fsPath, configPath,
-      trusted: vscode.workspace.isTrusted, selectedId: this.selectedId, activeId: state.activeId || (this.profiles(folder).some(p => p.project) ? 'project' : undefined), busy: this.busy,
+      trusted: vscode.workspace.isTrusted, settings, googleConfigured, googleLocal: !vscode.env.remoteName, selectedId: this.selectedId, configureMode: this.configureMode, activeId: state.activeId || (this.profiles(folder).some(p => p.project) ? 'project' : undefined), busy: this.busy,
       profiles: this.profiles(folder).map(p => ({ ...p, status: this.statuses.get(`${folder.uri.toString()}:${p.id}`) })) });
   }
   private async message(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object' || !this.folder) return;
     const m = message as Record<string, unknown>;
     if (m.type === 'ready') { await this.renderState(); return; }
+    if (typeof m.root === 'string' && m.root !== this.folder.uri.fsPath) { this.notify('The selected project changed. Review this project before saving.', true); await this.renderState(); return; }
     if (this.busy) return;
     this.busy = true;
     const folder = this.folder;
@@ -182,12 +196,124 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
       const profile = id ? this.profiles(folder).find(p => p.id === id) : undefined;
       const entry = { root: folder, profile };
       switch (m.type) {
+        case 'googleHelp': await vscode.env.openExternal(vscode.Uri.parse('https://developers.google.com/identity/protocols/oauth2/native-app')); break;
+        case 'googleSaveClient': {
+          this.requireTrust();
+          const client = parseGoogleClient({ installed: { client_id: m.clientId, client_secret: m.clientSecret } });
+          await this.context.secrets.store(this.googleClientKey(folder), JSON.stringify(client));
+          this.notify('Google OAuth application configured. You can now sign in and choose a spreadsheet.');
+          void this.panel?.webview.postMessage({ type: 'googleConfigured' });
+          break;
+        }
+        case 'googleConfigure': {
+          this.requireTrust();
+          const uris = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { 'Google OAuth client JSON': ['json'] }, openLabel: 'Import desktop OAuth client' });
+          if (!uris?.[0]) break;
+          let client: GoogleClient;
+          try { client = parseGoogleClient(JSON.parse(fs.readFileSync(uris[0].fsPath, 'utf8'))); }
+          catch { throw new Error('Select the downloaded OAuth client JSON for a Google Desktop app.'); }
+          await this.context.secrets.store(this.googleClientKey(folder), JSON.stringify(client));
+          this.notify('Google OAuth application imported. Sign in to choose a spreadsheet.');
+          void this.panel?.webview.postMessage({ type: 'googleConfigured' });
+          break;
+        }
+        case 'googleSignIn': {
+          this.requireTrust();
+          if (vscode.env.remoteName) throw new Error('Desktop Google sign-in requires a local VS Code window. Configure this application locally; remote projects can use a service account.');
+          const stored = await this.context.secrets.get(this.googleClientKey(folder));
+          if (!stored) throw new Error('Configure a Google Desktop OAuth application first.');
+          const client = JSON.parse(stored) as GoogleClient;
+          const tokens = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'AN5: Sign in with Google in your browser', cancellable: true }, async (_progress, cancellation) => {
+            const controller = new AbortController();
+            const listener = cancellation.onCancellationRequested(() => controller.abort());
+            const disposed = this.panel?.onDidDispose(() => controller.abort());
+            try { return await authorizeGoogle(client, async url => await vscode.env.openExternal(vscode.Uri.parse(url)), controller.signal); }
+            finally { listener.dispose(); disposed?.dispose(); }
+          });
+          const sheets = await googleSpreadsheets(tokens);
+          if (!sheets.length) throw new Error('No spreadsheets found in this account. Create or share a spreadsheet, then reconnect.');
+          const chosen = await vscode.window.showQuickPick(sheets.map(sheet => ({ label: sheet.name, description: sheet.id, sheet })), { placeHolder: 'Choose a Google spreadsheet for this AN5 project', matchOnDescription: true });
+          if (!chosen) break;
+          const current = this.store.list(root).profiles;
+          let existing: ConnectionProfile | undefined;
+          for (const candidate of current.filter(p => p.provider === 'googlesheets')) {
+            if ((await this.store.secret(root, candidate.id))?.startsWith(`googlesheets://${chosen.sheet.id};`)) { existing = candidate; break; }
+          }
+          const requestedName = typeof m.name === 'string' ? m.name.trim() : '';
+          const base = requestedName || `${chosen.sheet.name.slice(0, 55)} · Google Sheets`;
+          let name = existing?.name || base, suffix = 2;
+          while (!existing && current.some(p => p.name.toLowerCase() === name.toLowerCase())) name = `${base} ${suffix++}`;
+          const saved = await this.store.save(root, name, googleConnection(chosen.sheet.id, client, tokens), existing?.id);
+          await this.store.activate(root, saved.id); this.selectedId = saved.id;
+          this.notify('Google Sheets connection saved securely and activated.');
+          void this.panel?.webview.postMessage({ type: 'connectionSaved' });
+          break;
+        }
+        case 'saveSettings': {
+          this.requireTrust();
+          const rel = saveProjectSettings(folder.uri.fsPath, m.settings);
+          this.notify(`Project paths saved to ${rel}. Generate the client when you are ready.`);
+          void this.panel?.webview.postMessage({ type: 'settingsSaved' });
+          break;
+        }
         case 'save': {
           this.requireTrust();
           if (typeof m.name !== 'string' || typeof m.connectionString !== 'string') throw new Error('Enter a name and connection string.');
-          const saved = await this.store.save(root, m.name, m.connectionString, id);
-          this.selectedId = saved.id; this.statuses.delete(`${root}:${saved.id}`);
-          this.notify('Connection saved securely.'); break;
+          const target = typeof m.target === 'string' ? m.target : 'secret';
+          if (!['secret', 'env', 'config'].includes(target)) throw new Error('Choose where to save this connection.');
+          const value = m.connectionString.trim() || (id ? await this.store.secret(root, id) : undefined);
+          if (!value || /[\r\n\0]/.test(value)) throw new Error('Enter a single-line connection string.');
+          providerOf(value);
+          if (target === 'env') {
+            const rel = saveConnectionToEnv(folder.uri.fsPath, value);
+            await this.store.activate(root); this.selectedId = undefined;
+            this.notify(`Connection saved to ${rel}.`);
+          } else if (target === 'config') {
+            const rel = saveConnectionToConfig(folder.uri.fsPath, value);
+            await this.store.activate(root); this.selectedId = undefined;
+            this.notify(`Connection saved to ${rel}.`);
+          } else {
+            const saved = await this.store.save(root, m.name, m.connectionString, id);
+            this.selectedId = saved.id; this.statuses.delete(`${root}:${saved.id}`);
+            await this.store.activate(root, saved.id);
+            this.notify('Connection saved securely.');
+          }
+          void this.panel?.webview.postMessage({ type: 'connectionSaved' });
+          break;
+        }
+        case 'testDraft': {
+          this.requireTrust();
+          if (typeof m.connectionString !== 'string' || !m.connectionString.trim()) {
+            throw new Error('Enter a connection string to test.');
+          }
+          try {
+            const res = await testConnection(folder.uri.fsPath, m.connectionString.trim(), nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')));
+            const status = `Connected · ${res.latencyMs} ms (${res.provider})`;
+            this.notify(status);
+            void this.panel?.webview.postMessage({ type: 'testDraftResult', success: true, latencyMs: res.latencyMs, provider: res.provider, text: status });
+          } catch (error) {
+            const msg = (error as Error).message || 'Connection failed';
+            this.notify(msg, true);
+            void this.panel?.webview.postMessage({ type: 'testDraftResult', success: false, error: msg });
+          }
+          break;
+        }
+        case 'browseSqlite': {
+          this.requireTrust();
+          const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            defaultUri: folder.uri,
+            filters: { 'SQLite Databases': ['sqlite', 'sqlite3', 'db', 'db3'], 'All Files': ['*'] },
+            openLabel: 'Select SQLite Database'
+          });
+          if (uris && uris[0]) {
+            let rel = path.relative(folder.uri.fsPath, uris[0].fsPath);
+            if (!rel.startsWith('.') && !path.isAbsolute(rel)) rel = `./${rel}`;
+            void this.panel?.webview.postMessage({ type: 'sqliteChosen', path: rel });
+          }
+          break;
         }
         case 'test': if (!profile) throw new Error('Select a connection.'); await this.test(entry); break;
         case 'use': if (!profile) throw new Error('Select a connection.'); await this.use(entry); break;
@@ -229,6 +355,9 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
       // Only our validation errors are forwarded. Driver/config execution errors never include credentials.
       this.notify(m.type === 'import' ? 'Could not import configuration. Check the config syntax and connection setting.' : (error as Error).message, true);
     } finally { this.busy = false; await this.renderState(); }
+  }
+  private googleClientKey(folder: vscode.WorkspaceFolder): string {
+    return `an5.google.oauth.client.${createHash('sha256').update(folder.uri.toString()).digest('hex')}`;
   }
   private notify(text: string, error = false): void { void this.panel?.webview.postMessage({ type: 'notice', text, error }); }
   private async use(entry: Entry): Promise<void> {

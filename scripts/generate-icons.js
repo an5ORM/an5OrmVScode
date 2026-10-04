@@ -15,7 +15,7 @@ const { loadBrand } = require('./brand');
 const ICONS_DIR = path.resolve(__dirname, '..', 'icons');
 
 async function main() {
-  const { brandRoot, brand } = loadBrand();
+  const { brandRoot, icons } = loadBrand();
   const options = { outDir: ICONS_DIR };
 
   const argv = process.argv.slice(2);
@@ -29,7 +29,7 @@ async function main() {
   options.quiet = quiet;
 
   if (!quiet) console.log(`🎨 Using AN5 brand tokens from ${brandRoot}\n`);
-  const { count } = await brand.generate(options);
+  const { count } = await icons.generate(options);
   if (!quiet) console.log(`\n✨ Generated ${count} icon files in ${ICONS_DIR}`);
 }
 

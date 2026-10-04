@@ -123,6 +123,7 @@ for confirmation.
 | `an5_describe_model` | Fields with SQL type, keys, defaults, and relations |
 | `an5_get_relations` | Relation graph with foreign/local key columns |
 | `an5_analyze_schema` | Missing keys, unindexed foreign keys, unique candidates |
+| `an5_generate_code` | Request-specific schema/API context for the calling model to write application code |
 | `an5_read_schema_file` | Raw contents of a `.an5` file (workspace-scoped) |
 | `an5_query_database` | Run a `SELECT`; other statements are rejected |
 | `an5_describe_table` | Table columns from the schema, else from the database |
@@ -325,3 +326,23 @@ fails this workflow. Do not commit tokens or pass them in command-line arguments
 Run **AN5: Sync Agent Skills** from the Command Palette, the AN5 actions sidebar or Connections. It uses the selected project (including nested AN5 projects) and writes `.agents/skills/an5-orm/SKILL.md` plus an AN5 section in `AGENTS.md`. The skill covers schemas, generated clients, provider adapters, connection scope, npm scripts and MCP tools. Agents that read `AGENTS.md` can follow its link even without automatic skill discovery.
 
 Sync preserves instructions outside the managed AN5 markers and refuses to overwrite an existing unmanaged skill. Run it again after upgrading the extension or changing project scripts. It does not evaluate ORM configuration, include credentials, install global skills or change database/MCP settings. Workspace Trust is required. Skill discovery varies by agent; restart its session if it has already loaded project instructions.
+
+## Application code over MCP
+
+`an5_generate_code` accepts a user `request` and optional `language` (`auto`, `typescript`, `python`, `dotnet`, `golang`, `rust`). It discovers the selected workspace language and returns parsed schema plus actual generated API references. The calling AI model writes the requested application snippet from that context. The tool itself does not invoke an LLM or write application files. For multilingual workspaces, specify the language. Requires an installed `@an5/orm` exporting `prepareCodeRequest`; older installations return an upgrade error.
+
+## Project setup and Google Sheets sign-in
+
+Open **AN5: Manage Connections**. Expand **Project configuration** to edit the schema folder and generated client/metadata paths. Paths are relative to the selected project. Saving maintains a marked settings block in `an5Orm.config.js` or `.cjs`, preserving other configuration; it does not generate clients or change a database.
+
+The connection builder includes local database and SQLite presets, masked URI previews, connection testing and storage choices. Connection string mode preserves advanced options that the visual builder cannot represent. Editing a saved profile leaves its credentials private unless you enter replacement details.
+
+For Google Sheets, choose **Sheets** and expand **Google OAuth application setup**:
+
+1. In Google Cloud, create an OAuth client with application type **Desktop app**, configure the consent screen and enable Google Sheets API and Google Drive API. Add your account as a test user while the application is in testing.
+2. Import the downloaded client JSON, or enter its Client ID and optional Client secret. These settings are stored in SecretStorage for the selected project.
+3. Click **Sign in with Google**, approve access in your system browser, then choose a spreadsheet. The connection is saved securely and activated; there is no manual spreadsheet ID or authorization-code entry.
+
+The application requests spreadsheet read/write access and Drive metadata access to list spreadsheet names. Sign-in uses PKCE, state validation and a local loopback callback. The adapter refreshes expired access tokens using offline credentials. Install the adapter build containing offline OAuth support in the project; older versions can use an access token only until it expires.
+
+Desktop OAuth currently requires a **local VS Code extension host**. Remote/Codespace extension hosts use service account authentication until a hosted redirect flow is available. No Google OAuth client is bundled: real sign-in requires your application's configuration. See the [Google desktop OAuth guide](https://developers.google.com/identity/protocols/oauth2/native-app).

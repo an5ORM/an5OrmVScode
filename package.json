@@ -2,7 +2,7 @@
   "name": "an5-orm-vscode",
   "displayName": "AN5 ORM Schema Tooling",
   "description": "AN5 ORM workspace, secure database connections, schema tooling and MCP integration.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "an5orm",
   "author": "an5ORM",
   "homepage": "https://github.com/an5ORM/an5OrmVScode",
@@ -98,6 +98,12 @@
         "title": "AN5: Manage Database Connections",
         "category": "AN5 ORM",
         "icon": "$(database)"
+      },
+      {
+        "command": "an5.connections.configure",
+        "title": "AN5: Configure Project Connection",
+        "category": "AN5 ORM",
+        "icon": "$(plug)"
       },
       {
         "command": "an5.connections.add",
@@ -240,15 +246,15 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "node scripts/compile.js",
     "watch": "tsc -watch -p ./",
     "generate:icons": "node scripts/generate-icons.js",
     "check:icons": "node scripts/check-icons.js",
-    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js && node test/mcp.test.js && node --test test/mcp-regressions.test.js && node --test test/connections.test.js && node --test test/webview-browser.test.js && node --test test/agent-skills.test.js",
+    "test": "node test/smoke.test.js && node test/snippets.test.js && node test/grammar.test.js && node test/mcp.test.js && node --test test/mcp-regressions.test.js && node --test test/connections.test.js && node --test test/webview-browser.test.js && node --test test/agent-skills.test.js && node --test test/code-generation.test.js && node --test test/project-writer.test.js && node --test test/google-oauth.test.js test/project-settings.test.js",
     "package": "npx @vscode/vsce package --no-dependencies",
     "publish:marketplace": "npx @vscode/vsce publish --no-dependencies",
     "publish:openvsx": "npx ovsx publish",
-    "build": "tsc -p ./",
+    "build": "node scripts/compile.js",
     "pretest": "npm run build"
   },
   "devDependencies": {
