@@ -11,43 +11,21 @@
 
 const fs = require('fs');
 const path = require('path');
-
-function resolveBrand() {
-  const candidates = [];
-  if (process.env.AN5_BRAND_PATH) candidates.push(path.resolve(process.env.AN5_BRAND_PATH));
-
-  let dir = __dirname;
-  for (let i = 0; i < 6; i++) {
-    candidates.push(path.join(dir, 'an5Brand'));
-    candidates.push(path.join(dir, '..', 'an5Brand'));
-    dir = path.dirname(dir);
-  }
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(path.join(candidate, 'tokens.json'))) return candidate;
-  }
-
-  throw new Error([
-    'Could not locate the an5Brand submodule, which provides the shared brand tokens.',
-    'Initialise it with: git submodule update --init an5Brand',
-    'Or set AN5_BRAND_PATH to an existing an5Brand checkout.',
-  ].join('\n'));
-}
+const { loadBrand } = require('./brand');
 
 async function main() {
-  const brandRoot = resolveBrand();
-  const { loadTokens, wordmarkSvg, activitySvg } = require(path.join(brandRoot, 'scripts', 'generate-icons.js'));
+  const { brandRoot, brand } = loadBrand();
   const sharp = require('sharp');
 
   const iconsDir = path.resolve(__dirname, '..', 'icons');
-  const tokens = loadTokens(path.join(brandRoot, 'tokens.json'));
+  const tokens = brand.loadTokens(path.join(brandRoot, 'tokens.json'));
   const files = new Map();
 
-  files.set(tokens.icons.activityFile, { contents: activitySvg(tokens) });
+  files.set(tokens.icons.activityFile, { contents: brand.activitySvg(tokens) });
 
   for (const size of tokens.icons.sizes) {
     const stem = tokens.icons.wordmarkFile.replace(/\{size\}/g, size);
-    const svg = wordmarkSvg(tokens, size);
+    const svg = brand.wordmarkSvg(tokens, size);
     files.set(`${stem}.svg`, { contents: svg });
     files.set(`${stem}.png`, { render: { svg, size } });
     if (size === tokens.icons.defaultSize) {
