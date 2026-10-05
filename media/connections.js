@@ -5,6 +5,7 @@
   let editing;
   let lastSelection;
   let lastRoot;
+  let lastConfigureMode;
   let currentProvider = 'postgres';
   let activeTab = 'builder';
   let draftChanged = false;
@@ -122,7 +123,7 @@
       case 'googlesheets': {
         const sid = ($('fSpreadsheetId').value || '').trim();
         const email = ($('fClientEmail').value || '').trim();
-        const key = mask ? '••••••••' : ($('fPrivateKey').value || '').trim();
+        const key = mask && $('fPrivateKey').value ? '••••••••' : ($('fPrivateKey').value || '').trim();
         const apiKey = mask && $('fApiKey').value ? '••••••••' : ($('fApiKey').value || '').trim();
         let uri = `googlesheets://${sid}`;
         const parts = [];
@@ -160,6 +161,23 @@
     const cs = uri.trim(); if (!cs) return true;
     try {
       if (/^(sqlite:|:memory:$)/i.test(cs)) { setProvider('sqlite', true); $('fSqlitePath').value = cs.replace(/^sqlite:/i, ''); return true; }
+      if (/^googlesheets:\/\//i.test(cs)) {
+        const [spreadsheetId, ...options] = cs.slice('googlesheets://'.length).split(';');
+        if (/[?#/]/.test(spreadsheetId)) return false;
+        const fields = { clientEmail: 'fClientEmail', privateKey: 'fPrivateKey', apiKey: 'fApiKey' };
+        const values = {};
+        for (const option of options) {
+          const separator = option.indexOf('=');
+          if (separator < 1) return false;
+          const key = option.slice(0, separator);
+          if (!Object.hasOwn(fields, key) || Object.hasOwn(values, key)) return false;
+          values[key] = decodeURIComponent(option.slice(separator + 1));
+        }
+        setProvider('googlesheets', true);
+        $('fSpreadsheetId').value = spreadsheetId;
+        Object.entries(fields).forEach(([key, id]) => { $(id).value = values[key] || ''; });
+        return true;
+      }
       const url = new URL(cs);
       const provider = { 'postgres:':'postgres', 'postgresql:':'postgres', 'mysql:':'mysql', 'mariadb:':'mysql', 'sqlserver:':'mssql', 'mssql:':'mssql', 'nbase:':'nbase' }[url.protocol];
       if (!provider || url.hash) return false;
@@ -180,6 +198,7 @@
   }
 
   function edit(profile) {
+    document.body.classList.add('editor-open');
     if (profile?.project) profile = undefined;
     $('form').reset();
     editing = profile?.id; draftChanged = false;
@@ -191,7 +210,7 @@
       ? 'Edit connection'
       : (state.configureMode ? `Configure ${state.workspace} connection` : 'New connection');
 
-    $('name').value = profile?.name || (state.configureMode ? `${state.workspace} · ${providerNames[currentProvider]}` : '');
+    $('name').value = profile?.name || (state.configureMode ? `${state.workspace} · ${providerNames.postgres}` : '');
     $('connectionString').value = '';
     $('connectionString').required = false;
     $('connectionString').placeholder = profile
@@ -221,7 +240,11 @@
   }
 
   function render(next) {
+    const viewChanged = next.root !== lastRoot || !!next.configureMode !== lastConfigureMode || next.selectedId !== lastSelection;
     state = next;
+    document.body.classList.toggle('configure-view', !!next.configureMode);
+    $('pageTitle').textContent = next.configureMode ? 'Configure connection' : 'Workspace Tooling';
+    $('pageHelp').textContent = next.configureMode ? 'Enter database details, test the connection, and choose where to save it.' : 'Manage project settings, connections, schema, clients and agent tools.';
     if (next.root !== lastRoot) { settingsDirty = false; edit(); lastSelection = undefined; lastRoot = next.root; }
     if (!settingsDirty) settingKeys.forEach(key => { $(key).value = next.settings?.[key] || ''; });
     $('googleStatus').textContent = next.googleLocal === false ? 'Desktop Google sign-in is available in a local VS Code window.' : next.googleConfigured ? 'OAuth application ready. Sign in to select a spreadsheet.' : 'First, import or enter your Google Desktop OAuth application.';
@@ -246,8 +269,12 @@
       else actions.append(button('Edit', () => edit(profile)), button('Delete', () => send('remove', { id: profile.id })));
       row.append(head, meta, actions); $('profiles').append(row);
     }
-    if (next.selectedId !== lastSelection) { edit(next.profiles.find(p => p.id === next.selectedId)); lastSelection = next.selectedId; }
+    if (next.selectedId !== lastSelection || !!next.configureMode !== lastConfigureMode) {
+      edit(next.profiles.find(p => p.id === next.selectedId));
+      lastSelection = next.selectedId; lastConfigureMode = !!next.configureMode;
+    }
     if (editing && !next.profiles.some(p => p.id === editing)) edit();
+    if (viewChanged) document.body.classList.toggle('editor-open', !!next.configureMode || !!next.selectedId);
     document.querySelectorAll('button,input,select').forEach(el => { el.disabled = next.busy; });
     updateFormAvailability();
     if (!next.trusted) document.querySelectorAll('#saveSettings,#save,#testDraft,#googleSignIn,#googleConfigure,#googleSaveClient,#import,[data-action="generate"],[data-action="push"],[data-action="pull"],[data-action="schema"]').forEach(el => { el.disabled = true; });
@@ -356,6 +383,7 @@
   window.addEventListener('message', event => {
     const m = event.data;
     if (m.type === 'state') render(m);
+    if (m.type === 'focusConnection') { $('form').scrollIntoView({ block: 'start' }); $('name').focus({ preventScroll: true }); }
     if (m.type === 'googleConfigured') { $('googleClientSecret').value = ''; $('googleSetup').open = false; }
     if (m.type === 'settingsSaved') { settingsDirty = false; $('settingsStatus').textContent = 'Project settings saved.'; }
     if (m.type === 'connectionSaved') { edit(); }

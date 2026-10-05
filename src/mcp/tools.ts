@@ -313,7 +313,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
     {
       name: 'an5_generate_code',
       description: 'Prepare application code for a user request in the project language. Returns schema and real generated API references for YOU, the calling model, to write the requested snippet. This tool does not itself invoke an LLM, write files or execute SQL. Choose an explicit language for multilingual workspaces.',
-      inputSchema: { type: 'object', properties: { request: { type: 'string' }, language: { type: 'string', enum: ['auto', 'typescript', 'python', 'dotnet', 'golang', 'rust'] } }, required: ['request'], additionalProperties: false },
+      inputSchema: { type: 'object', properties: { request: { type: 'string' }, language: { type: 'string', enum: ['auto', 'typescript', 'python', 'dotnet', 'golang', 'rust', 'java', 'kotlin', 'swift'] } }, required: ['request'], additionalProperties: false },
       annotations: { title: 'Generate AN5 application code', ...readOnly },
       async handler(args) {
         const ws = resolve();
@@ -335,7 +335,7 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
           language: {
             type: 'string',
             description: 'Target language',
-            enum: ['typescript', 'python', 'dotnet', 'golang', 'rust'],
+            enum: ['typescript', 'python', 'dotnet', 'golang', 'rust', 'java', 'kotlin', 'swift'],
           },
           outputDir: { type: 'string', description: 'Output directory (default: the configured path for that language)' },
           confirm: { type: 'boolean', description: CONFIRM_HELP, default: false },

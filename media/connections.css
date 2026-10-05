@@ -185,3 +185,10 @@ form input,form select{min-width:0}
 
 .layout{align-items:start}
 .manual-sheets summary{cursor:pointer;font-weight:600;margin-bottom:12px}
+
+/* Configuration is a focused screen; tooling opens with the project overview. */
+body:not(.editor-open) #connectionEditor{display:none}
+body:not(.editor-open) .layout{grid-template-columns:1fr}
+body:not(.configure-view) .setup-guide{display:none}
+.configure-view .summary,.configure-view #projectSettings,.configure-view .layout>section:first-child,.configure-view .tools,.configure-view .config-tip,.configure-view .footnote{display:none}
+.configure-view .layout{grid-template-columns:minmax(0,1fr);max-width:850px;margin-inline:auto}

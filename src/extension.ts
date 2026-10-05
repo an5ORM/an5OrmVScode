@@ -207,7 +207,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Show QuickPick menu
   const menuCommand = vscode.commands.registerCommand('an5.showMenu', async () => {
     const items = [
-      { label: '$(database) Manage Connections', description: 'Secure database profiles and workspace tools', command: 'an5.connections.manage' },
+      { label: '$(settings-gear) Workspace Tooling', description: 'Project settings, database connections and workspace tools', command: 'an5.connections.manage' },
       { label: '$(gear) Generate Client Code', description: 'Run npm run generate / an5 generate', command: 'an5.generate' },
       { label: '$(cloud-upload) Push Database Schema', description: 'Run npm run db:push / an5 push', command: 'an5.push' },
       { label: '$(cloud-download) Pull Database Schema', description: 'Run npm run db:pull / an5 pull', command: 'an5.pull' },
@@ -256,6 +256,9 @@ module.exports = {
     },
     golang: { outputDir: 'an5Client/golang' },
     rust: { outputDir: 'an5Client/rust' },
+    java: { outputDir: 'an5Client/java' },
+    kotlin: { outputDir: 'an5Client/kotlin' },
+    swift: { outputDir: 'an5Client/swift' },
   },
   pull: {
     exclude: ['^__', '^sys\\\\.', '^igrations'],
@@ -316,7 +319,7 @@ module.exports = {
 
       const docs: Record<string, string> = {
         schemaDir: '**schemaDir**: Path to directory containing `.an5` schema files (default: `"an5Schema"`).',
-        outputs: '**outputs**: Targets for generated client artifacts (`typescript`, `python`, `dotnet`).',
+        outputs: '**outputs**: Targets for generated client artifacts (`typescript`, `python`, `dotnet`, `golang`, `rust`, `java`, `kotlin`, `swift`).',
         typescript: '**typescript**: TypeScript client output directory and metadata path.',
         python: '**python**: Python client metadata output path.',
         dotnet: '**dotnet**: .NET (C#) client models output directory.',

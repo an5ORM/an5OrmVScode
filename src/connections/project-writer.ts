@@ -62,6 +62,9 @@ module.exports = {
     },
     golang: { outputDir: 'an5Client/golang' },
     rust: { outputDir: 'an5Client/rust' },
+    java: { outputDir: 'an5Client/java' },
+    kotlin: { outputDir: 'an5Client/kotlin' },
+    swift: { outputDir: 'an5Client/swift' },
   },
   pull: {
     exclude: ['^__', '^sys\\\\.', '^igrations'],

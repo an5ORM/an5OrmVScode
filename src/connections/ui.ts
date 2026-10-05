@@ -32,7 +32,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     this.store = new ConnectionStore(context.workspaceState, context.secrets);
     this.disposables.push(vscode.window.createTreeView('an5.connections', { treeDataProvider: this, showCollapseAll: true }));
     const actions = [
-      ['Manage connections', 'an5.connections.manage', 'database'], ['Open ORM configuration', 'an5.openConfig', 'settings-gear'],
+      ['Workspace Tooling', 'an5.connections.manage', 'settings-gear'], ['Open ORM configuration', 'an5.openConfig', 'settings-gear'],
       ['Generate client', 'an5.generate', 'gear'], ['Push schema', 'an5.push', 'cloud-upload'],
       ['Pull schema', 'an5.pull', 'cloud-download'], ['Configure MCP', 'an5.mcp.install', 'robot'],
       ['Sync agent skills', 'an5.agentSkills.sync', 'book'],
@@ -82,11 +82,11 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     }
     if (entry.action) {
       const isConfigure = entry.action === 'configure';
-      const item = new vscode.TreeItem(isConfigure ? 'Configure project connection' : 'Manage connections');
+      const item = new vscode.TreeItem(isConfigure ? 'Configure connection' : 'Workspace Tooling');
       item.iconPath = new vscode.ThemeIcon(isConfigure ? 'plug' : 'settings-gear');
       item.command = isConfigure
-        ? { command: 'an5.connections.configure', title: 'Configure project connection', arguments: [entry] }
-        : { command: 'an5.connections.manage', title: 'Manage connections', arguments: [entry] };
+        ? { command: 'an5.connections.configure', title: 'Configure connection', arguments: [entry] }
+        : { command: 'an5.connections.manage', title: 'Workspace Tooling', arguments: [entry] };
       return item;
     }
     const profile = entry.profile!;
@@ -103,7 +103,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     if (!entry) return this.projects().map(root => ({ root }));
     if (entry.profile || entry.action) return [];
     const profiles = this.profiles(entry.root);
-    return [...profiles.map(profile => ({ root: entry.root, profile })), ...(!profiles.some(p => p.project) ? [{ root: entry.root, action: 'configure' }] : []), { root: entry.root, action: 'manage' }];
+    return [...profiles.map(profile => ({ root: entry.root, profile })), ...(!profiles.length ? [{ root: entry.root, action: 'configure' }] : []), { root: entry.root, action: 'manage' }];
   }
   private profiles(folder: vscode.WorkspaceFolder): ConnectionProfile[] {
     const saved = this.store.list(folder.uri.toString()).profiles;
@@ -152,7 +152,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     this.folder = folder; this.selectedId = add ? undefined : entry?.profile?.id;
     this.configureMode = add || entry?.action === 'configure';
     if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel('an5.connectionManager', 'AN5 · Connections', vscode.ViewColumn.One, {
+      this.panel = vscode.window.createWebviewPanel('an5.connectionManager', 'AN5 · Workspace Tooling', vscode.ViewColumn.One, {
         enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media'), vscode.Uri.joinPath(this.context.extensionUri, 'icons')],
       });
       this.panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'icons', 'activity.svg');
@@ -160,7 +160,9 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
       this.panel.onDidDispose(() => { this.panel = undefined; });
       this.panel.webview.onDidReceiveMessage(message => this.message(message));
     } else this.panel.reveal();
+    this.panel.title = this.configureMode ? 'AN5 · Configure Connection' : 'AN5 · Workspace Tooling';
     await this.renderState();
+    if (this.configureMode) await this.panel.webview.postMessage({ type: 'focusConnection' });
   }
   private html(webview: vscode.Webview): string {
     const nonce = randomBytes(16).toString('hex');
@@ -184,7 +186,11 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
   private async message(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object' || !this.folder) return;
     const m = message as Record<string, unknown>;
-    if (m.type === 'ready') { await this.renderState(); return; }
+    if (m.type === 'ready') {
+      await this.renderState();
+      if (this.configureMode) await this.panel?.webview.postMessage({ type: 'focusConnection' });
+      return;
+    }
     if (typeof m.root === 'string' && m.root !== this.folder.uri.fsPath) { this.notify('The selected project changed. Review this project before saving.', true); await this.renderState(); return; }
     if (this.busy) return;
     this.busy = true;

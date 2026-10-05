@@ -14,7 +14,7 @@ function outputPath(root: string, value: string): string {
 }
 /** Generate only the requested language, preserving other configured output targets. */
 export async function generateClient(ws: Workspace, language: string, override?: string): Promise<{ language: string; outputDir: string; modelCount: number }> {
-  if (!['typescript', 'python', 'dotnet', 'golang', 'rust'].includes(language)) throw new Error('Unsupported client language.');
+  if (!['typescript', 'python', 'dotnet', 'golang', 'rust', 'java', 'kotlin', 'swift'].includes(language)) throw new Error('Unsupported client language.');
   if (!ws.ormDir) throw new Error('Install @an5/orm in this workspace to generate a client.');
   const gen = require(path.join(ws.ormDir, 'dist', 'generator', 'src', 'api.js'));
   const models = await loadSchemaModels(ws);
@@ -24,7 +24,7 @@ export async function generateClient(ws: Workspace, language: string, override?:
   const dir = outputPath(ws.root, override || config?.outputDir || defaultDir);
   const metadataFile = outputPath(ws.root, override ? path.join(override, language === 'python' ? 'an5_metadata.py' : 'an5Metadata.ts') : config?.metadataFile || path.join(dir, language === 'python' ? 'an5_metadata.py' : 'an5Metadata.ts'));
   if (language === 'typescript' && path.extname(metadataFile) !== '.ts' || language === 'python' && path.extname(metadataFile) !== '.py') throw new Error('Metadata must use the target language file extension.');
-  const constructors: Record<string, string> = { typescript: 'CodeGenerator', python: 'PythonGenerator', dotnet: 'DotnetGenerator', golang: 'GolangGenerator', rust: 'RustGenerator' };
+  const constructors: Record<string, string> = { typescript: 'CodeGenerator', python: 'PythonGenerator', dotnet: 'DotnetGenerator', golang: 'GolangGenerator', rust: 'RustGenerator', java: 'JavaGenerator', kotlin: 'KotlinGenerator', swift: 'SwiftGenerator' };
   const Generator = gen[constructors[language]];
   if (typeof Generator !== 'function') throw new Error('The installed ORM does not provide this language generator.');
   fs.mkdirSync(dir, { recursive: true });

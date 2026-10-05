@@ -2,7 +2,7 @@
   "name": "an5-orm-vscode",
   "displayName": "AN5 ORM Schema Tooling",
   "description": "AN5 ORM workspace, secure database connections, schema tooling and MCP integration.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "publisher": "an5orm",
   "author": "an5ORM",
   "homepage": "https://github.com/an5ORM/an5OrmVScode",
@@ -95,13 +95,13 @@
       },
       {
         "command": "an5.connections.manage",
-        "title": "AN5: Manage Database Connections",
+        "title": "AN5: Workspace Tooling",
         "category": "AN5 ORM",
         "icon": "$(database)"
       },
       {
         "command": "an5.connections.configure",
-        "title": "AN5: Configure Project Connection",
+        "title": "AN5: Configure Connection",
         "category": "AN5 ORM",
         "icon": "$(plug)"
       },
@@ -166,15 +166,18 @@
       "an5": [
         {
           "id": "an5.connections",
-          "name": "Connections"
+          "name": "Connections",
+          "icon": "icons/activity.svg"
         },
         {
           "id": "an5.schema",
-          "name": "Schema Explorer"
+          "name": "Schema Explorer",
+          "icon": "icons/activity.svg"
         },
         {
           "id": "an5.actions",
-          "name": "Project Actions"
+          "name": "Project Actions",
+          "icon": "icons/activity.svg"
         }
       ]
     },
@@ -255,7 +258,8 @@
     "publish:marketplace": "npx @vscode/vsce publish --no-dependencies",
     "publish:openvsx": "npx ovsx publish",
     "build": "node scripts/compile.js",
-    "pretest": "npm run build"
+    "pretest": "npm run build",
+    "upload:marketplace": "node scripts/marketplace-upload.js"
   },
   "devDependencies": {
     "@an5/adapters": "^0.2.10",

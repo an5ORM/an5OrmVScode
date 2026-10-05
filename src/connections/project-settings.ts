@@ -10,6 +10,9 @@ export interface ProjectSettings {
   dotnetDir: string;
   golangDir: string;
   rustDir: string;
+  javaDir: string;
+  kotlinDir: string;
+  swiftDir: string;
 }
 
 export function projectSettings(config: Record<string, unknown>): ProjectSettings {
@@ -23,6 +26,9 @@ export function projectSettings(config: Record<string, unknown>): ProjectSetting
     dotnetDir: value('dotnet', 'outputDir', 'an5Client/dotnet'),
     golangDir: value('golang', 'outputDir', 'an5Client/golang'),
     rustDir: value('rust', 'outputDir', 'an5Client/rust'),
+    javaDir: value('java', 'outputDir', 'an5Client/java'),
+    kotlinDir: value('kotlin', 'outputDir', 'an5Client/kotlin'),
+    swiftDir: value('swift', 'outputDir', 'an5Client/swift'),
   };
 }
 
@@ -55,6 +61,9 @@ export function saveProjectSettings(root: string, raw: unknown): string {
     dotnet: { outputDir: settings.dotnetDir },
     golang: { outputDir: settings.golangDir },
     rust: { outputDir: settings.rustDir },
+    java: { outputDir: settings.javaDir },
+    kotlin: { outputDir: settings.kotlinDir },
+    swift: { outputDir: settings.swiftDir },
   };
   const block = `${START}\nmodule.exports = {\n  ...module.exports,\n  schemaDir: ${JSON.stringify(settings.schemaDir)},\n  outputs: {\n    ...module.exports.outputs,\n${Object.entries(outputs).map(([language, output]) => `    ${language}: { ...module.exports.outputs?.${language}, ...${JSON.stringify(output)} },`).join('\n')}\n  },\n};\n${END}`;
   source = start >= 0 ? source.slice(0, start) + block + source.slice(end + END.length) : source.trimEnd() + '\n\n' + block + '\n';

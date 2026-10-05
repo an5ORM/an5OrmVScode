@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-10-04
+
+- Replace Manage connections with Workspace Tooling and group project settings, connections, schema/client actions and MCP/agent tools clearly.
+- Show Configure connection only for projects without connections; focus its form and reset it correctly when switching modes.
+- Add `npm run upload:marketplace` to test and package the extension, then open the publisher page for manual VSIX upload without a PAT.
+
 ## [1.3.0] - 2026-10-04
 
 - Resolve the TypeScript compiler from either a standalone checkout or the monorepo when building and packaging.

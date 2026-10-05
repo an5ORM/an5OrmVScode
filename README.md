@@ -33,7 +33,7 @@ Published on the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 
 ## Connections and workspace UI (1.2.0)
 
-Click the **AN5** logo in the Activity Bar, then **Manage connections**.
+Click the **AN5** logo in the Activity Bar, then **Workspace Tooling**.
 
 ![AN5 connection manager with automatic project connections and agent skill sync](media/connections-preview.png)
 
@@ -135,7 +135,7 @@ so VS Code shows a confirmation dialog, **and** they require an explicit
 
 | Tool | What it does |
 |------|--------------|
-| `an5_generate_client` | Generate client code for TypeScript/Python/.NET/Go/Rust |
+| `an5_generate_client` | Generate client code for TypeScript/Python/.NET/Go/Rust/Java/Kotlin/Swift |
 | `an5_push_schema` | Create tables and missing columns from the schema |
 | `an5_pull_schema` | Introspect the database into `.an5` files |
 | `an5_migrate` | `diff`, `generate`, `apply`, `rollback`, `status` |
@@ -307,7 +307,21 @@ See the [Open VSX Trusted Publishing documentation](https://github.com/eclipse-o
 ### VS Code Marketplace (manual upload, no Azure billing)
 
 Marketplace publishing uses your browser login, without `VSCE_PAT` or an Azure
-subscription. After GitHub creates the release:
+subscription. To prepare a tested local package and open the upload page, run:
+
+```bash
+npm run upload:marketplace
+# Package and print instructions without opening a browser:
+npm run upload:marketplace -- --no-open
+```
+
+The tool runs the full extension tests and invokes the installed vsce CLI through
+Node, including on volumes where executable shims cannot run. It prints the exact
+VSIX path and publisher URL. Choose a new version in `package.json` and synchronize
+the lockfile before preparing an update. The final upload uses your browser login.
+Manual upload is also described in the [VS Code publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension).
+
+Alternatively, after GitHub creates the release:
 
 1. Download `an5-orm-vscode-<version>.vsix` from the
    [GitHub Release](https://github.com/an5ORM/an5OrmVScode/releases).
@@ -329,7 +343,7 @@ Sync preserves instructions outside the managed AN5 markers and refuses to overw
 
 ## Application code over MCP
 
-`an5_generate_code` accepts a user `request` and optional `language` (`auto`, `typescript`, `python`, `dotnet`, `golang`, `rust`). It discovers the selected workspace language and returns parsed schema plus actual generated API references. The calling AI model writes the requested application snippet from that context. The tool itself does not invoke an LLM or write application files. For multilingual workspaces, specify the language. Requires an installed `@an5/orm` exporting `prepareCodeRequest`; older installations return an upgrade error.
+`an5_generate_code` accepts a user `request` and optional `language` (`auto`, `typescript`, `python`, `dotnet`, `golang`, `rust`, `java`, `kotlin`, `swift`). It discovers the selected workspace language and returns parsed schema plus actual generated API references. The calling AI model writes the requested application snippet from that context. The tool itself does not invoke an LLM or write application files. For multilingual workspaces, specify the language. Requires an installed `@an5/orm` exporting `prepareCodeRequest`; older installations return an upgrade error.
 
 ## Project setup and Google Sheets sign-in
 
