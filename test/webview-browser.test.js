@@ -52,7 +52,12 @@ test('connection webview handles edits, XSS names, busy state and narrow layouts
       window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,root:'/other/workspace',profiles:[project],activeId:'project',busy:false}}));
       check(document.querySelector('.active-badge')&&document.getElementById('active').textContent==='Project connection', 'Discovered project connection must be active by default');
       const labels=[...document.querySelectorAll('.profile-actions button')].map(b=>b.textContent);
-      check(labels.includes('Open source')&&!labels.includes('Delete')&&!labels.includes('Edit'), 'Project sources must not be mutated as saved profiles');
+      check(labels.includes('Open source')&&labels.includes('Edit')&&!labels.includes('Delete'), 'Project sources have Edit and Open source but not Delete');
+      const editBtn = [...document.querySelectorAll('.profile-actions button')].find(b=>b.textContent==='Edit');
+      editBtn.click();
+      check(document.getElementById('name').value==='Project connection', 'Project edit must load name');
+      check(document.querySelector('input[name="target"]:checked').value==='env', 'Project edit must select env target');
+      check(document.querySelector('.target-card.active input').value==='env', 'Active card styling must match selected target');
       check(document.querySelector('img.brand').naturalWidth>0, 'Shared AN5 logo must load');
       document.getElementById('add').click();
       document.getElementById('sqlitePreset').click();

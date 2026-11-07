@@ -64,8 +64,14 @@ function loadAdapters(ws: Workspace): { createAn5Adapter: (opts: Record<string, 
     throw new Error('No DATABASE_URL found. Set it in the environment or in the project .env file.');
   }
   for (const root of [ws.root, ...(ws.ormDir ? [ws.ormDir] : [])]) {
-    try { return createRequire(path.join(root, 'package.json'))('@an5/adapters'); }
-    catch { /* try the ORM's dependency before reporting an unavailable adapter */ }
+    try {
+      const rootReq = createRequire(path.join(root, 'package.json'));
+      try { return rootReq('@an5/adapters'); }
+      catch {
+        const ormPkg = rootReq.resolve('@an5/orm');
+        return createRequire(ormPkg)('@an5/adapters');
+      }
+    } catch { /* try next candidate before reporting an unavailable adapter */ }
   }
   throw new Error('Could not load @an5/adapters. Install it in this project: npm install @an5/adapters');
 }

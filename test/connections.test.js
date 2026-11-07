@@ -100,6 +100,24 @@ test('isolated SQLite connection probe succeeds with project adapters', async ()
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('connection probe resolves transitive @an5/adapters via @an5/orm (pnpm virtual store)', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-pnpm-probe-'));
+  try {
+    const ormDir = path.join(root, 'node_modules', '@an5', 'orm');
+    fs.mkdirSync(path.join(ormDir, 'node_modules', '@an5'), { recursive: true });
+    fs.writeFileSync(path.join(ormDir, 'package.json'), JSON.stringify({ name: '@an5/orm', version: '1.0.0', main: 'index.js' }));
+    fs.writeFileSync(path.join(ormDir, 'index.js'), 'module.exports = {};');
+    fs.symlinkSync(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(ormDir, 'node_modules', '@an5', 'adapters'), 'dir');
+
+    const { createRequire } = require('module');
+    assert.throws(() => createRequire(path.join(root, 'package.json')).resolve('@an5/adapters'));
+
+    const result = await testConnection(root, 'sqlite:./pnpm-probe.sqlite');
+    assert.equal(result.provider, 'sqlite');
+    assert.ok(fs.existsSync(path.join(root, 'pnpm-probe.sqlite')));
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('project command plans keep workspace cwd and do not retry failed scripts', () => {
   const { projectCommand } = require('../dist/project-command');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-command-plan-'));

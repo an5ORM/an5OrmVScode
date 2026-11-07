@@ -199,15 +199,13 @@
 
   function edit(profile) {
     document.body.classList.add('editor-open');
-    if (profile?.project) profile = undefined;
     $('form').reset();
     editing = profile?.id; draftChanged = false;
     $('fPassword').type = 'password'; $('togglePassword').textContent = '👁';
     $('editingHelp').classList.toggle('hidden', !profile);
-    document.querySelectorAll('.target-card').forEach(card => card.classList.toggle('active', !!card.querySelector('input:checked')));
     $('testBox').classList.add('hidden');
     $('formTitle').textContent = profile
-      ? 'Edit connection'
+      ? (profile.project ? `Edit ${profile.name}` : 'Edit connection')
       : (state.configureMode ? `Configure ${state.workspace} connection` : 'New connection');
 
     $('name').value = profile?.name || (state.configureMode ? `${state.workspace} · ${providerNames.postgres}` : '');
@@ -217,6 +215,17 @@
       ? 'Leave blank to keep saved credentials'
       : 'postgresql://user:password@host:5432/database';
     $('save').textContent = profile ? 'Save changes' : 'Save connection';
+
+    if (profile?.project) {
+      const src = (profile.source || '').toLowerCase();
+      const targetVal = src.includes('env') ? 'env' : src.includes('config') ? 'config' : 'env';
+      const radio = document.querySelector(`input[name="target"][value="${targetVal}"]`);
+      if (radio) radio.checked = true;
+    } else if (profile) {
+      const radio = document.querySelector('input[name="target"][value="secret"]');
+      if (radio) radio.checked = true;
+    }
+    document.querySelectorAll('.target-card').forEach(card => card.classList.toggle('active', !!card.querySelector('input:checked')));
 
     if (profile) {
       const p = profile.provider === 'postgres' ? 'postgres'
@@ -265,8 +274,9 @@
       const meta = document.createElement('div'); meta.className = 'profile-meta'; meta.textContent = profile.provider + ' · ' + (profile.status || 'Not tested');
       const actions = document.createElement('div'); actions.className = 'profile-actions';
       actions.append(button('Test', () => send('test', { id: profile.id })), button('Use connection', () => send('use', { id: profile.id })));
+      actions.append(button('Edit', () => edit(profile)));
       if (profile.project) actions.append(button('Open source', () => send('projectSource')));
-      else actions.append(button('Edit', () => edit(profile)), button('Delete', () => send('remove', { id: profile.id })));
+      else actions.append(button('Delete', () => send('remove', { id: profile.id })));
       row.append(head, meta, actions); $('profiles').append(row);
     }
     if (next.selectedId !== lastSelection || !!next.configureMode !== lastConfigureMode) {
@@ -342,7 +352,7 @@
   $('testDraft').addEventListener('click', () => {
     let cs = $('connectionString').value.trim();
     if (activeTab === 'builder' && (!editing || draftChanged)) cs = buildUri(false);
-    if (!cs) {
+    if (!cs && !editing) {
       $('notice').textContent = 'Enter connection details to test.';
       $('notice').classList.remove('hidden');
       $('notice').classList.add('error');
@@ -353,7 +363,7 @@
     box.classList.remove('hidden');
     status.className = 'test-status loading';
     status.textContent = '⏳ Testing connection...';
-    send('testDraft', { connectionString: cs });
+    send('testDraft', { id: editing, connectionString: cs });
   });
 
   // Target radio styling

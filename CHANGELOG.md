@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2] - 2026-11-07
+
+- Add direct Edit action for project connection cards in Workspace Tooling, prefilling metadata, preserving credentials, and targeting the source configuration or secure store.
+- Resolve transitive `@an5/adapters` via `@an5/orm` in connection probes and MCP tools when using isolated virtual store layouts like pnpm.
+- Return sanitized stderr diagnostics rather than generic failure when connection probing fails, redacting credentials and secrets.
+- Support running TypeScript compilation when system `tsc` is available or filesystem permissions restrict execution.
+
 ## [1.3.1] - 2026-10-04
 
 - Replace Manage connections with Workspace Tooling and group project settings, connections, schema/client actions and MCP/agent tools clearly.

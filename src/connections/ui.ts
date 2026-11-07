@@ -267,7 +267,10 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
           if (typeof m.name !== 'string' || typeof m.connectionString !== 'string') throw new Error('Enter a name and connection string.');
           const target = typeof m.target === 'string' ? m.target : 'secret';
           if (!['secret', 'env', 'config'].includes(target)) throw new Error('Choose where to save this connection.');
-          const value = m.connectionString.trim() || (id ? await this.store.secret(root, id) : undefined);
+          const isProject = id === 'project';
+          const value = m.connectionString.trim() || (isProject
+            ? projectConnection(folder.uri.fsPath)?.connectionString
+            : (id ? await this.store.secret(root, id) : undefined));
           if (!value || /[\r\n\0]/.test(value)) throw new Error('Enter a single-line connection string.');
           providerOf(value);
           if (target === 'env') {
@@ -279,7 +282,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
             await this.store.activate(root); this.selectedId = undefined;
             this.notify(`Connection saved to ${rel}.`);
           } else {
-            const saved = await this.store.save(root, m.name, m.connectionString, id);
+            const saved = await this.store.save(root, m.name, value, isProject ? undefined : id);
             this.selectedId = saved.id; this.statuses.delete(`${root}:${saved.id}`);
             await this.store.activate(root, saved.id);
             this.notify('Connection saved securely.');
@@ -289,11 +292,17 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
         }
         case 'testDraft': {
           this.requireTrust();
-          if (typeof m.connectionString !== 'string' || !m.connectionString.trim()) {
+          let cs = typeof m.connectionString === 'string' ? m.connectionString.trim() : '';
+          if (!cs && id) {
+            cs = id === 'project'
+              ? projectConnection(folder.uri.fsPath)?.connectionString || ''
+              : (await this.store.secret(root, id)) || '';
+          }
+          if (!cs) {
             throw new Error('Enter a connection string to test.');
           }
           try {
-            const res = await testConnection(folder.uri.fsPath, m.connectionString.trim(), nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')));
+            const res = await testConnection(folder.uri.fsPath, cs, nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')));
             const status = `Connected · ${res.latencyMs} ms (${res.provider})`;
             this.notify(status);
             void this.panel?.webview.postMessage({ type: 'testDraftResult', success: true, latencyMs: res.latencyMs, provider: res.provider, text: status });

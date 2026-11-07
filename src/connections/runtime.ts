@@ -14,8 +14,18 @@ export async function testConnection(root: string, connectionString: string, run
   return new Promise((resolve, reject) => {
     execFile(runtime.command, [path.join(__dirname, 'probe.js')], {
       cwd: root, env: { ...process.env, ...runtime.env, DATABASE_URL: value }, timeout: 15000, maxBuffer: 64 * 1024, windowsHide: true,
-    }, (error, stdout) => {
-      if (error) { reject(new Error('Connection failed. Check Node/adapter installation, the address, credentials, database and network access.')); return; }
+    }, (error, stdout, stderr) => {
+      if (error) {
+        const detail = (stderr || '').trim();
+        const safeDetail = detail
+          ? detail.replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@').replace(/((?:password|pwd|privateKey|apiKey|accessToken|refreshToken)=)[^;&\s]*/gi, '$1••••••••')
+          : '';
+        const msg = safeDetail
+          ? `Connection failed: ${safeDetail}`
+          : 'Connection failed. Check Node/adapter installation, the address, credentials, database and network access.';
+        reject(new Error(msg));
+        return;
+      }
       try {
         const result = JSON.parse(stdout);
         if (typeof result.latencyMs !== 'number' || typeof result.provider !== 'string') throw new Error();
