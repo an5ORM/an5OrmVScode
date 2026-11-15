@@ -192,3 +192,10 @@ body:not(.editor-open) .layout{grid-template-columns:1fr}
 body:not(.configure-view) .setup-guide{display:none}
 .configure-view .summary,.configure-view #projectSettings,.configure-view .layout>section:first-child,.configure-view .tools,.configure-view .config-tip,.configure-view .footnote{display:none}
 .configure-view .layout{grid-template-columns:minmax(0,1fr);max-width:850px;margin-inline:auto}
+.explorer-controls{display:flex;flex-direction:column;gap:8px;width:100%}
+.explorer-controls .field-row{display:flex;gap:8px;flex-wrap:wrap}
+.explorer-controls .field-row>*{flex:1;min-width:140px}
+.explorer-results{overflow-x:auto;max-height:280px;border:1px solid var(--vscode-panel-border,rgba(128,128,128,0.25));border-radius:6px}
+.explorer-table{width:100%;border-collapse:collapse;font-size:12px}
+.explorer-table th,.explorer-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border,rgba(128,128,128,0.2));white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.explorer-table th{position:sticky;top:0;background:var(--vscode-editor-background);font-weight:600}

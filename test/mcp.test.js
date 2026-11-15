@@ -293,7 +293,7 @@ test('notifications get no response', async () => {
 test('tools/list returns every tool with a JSON Schema', async () => {
   const res = await handleRequest({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, serverOptions);
   const list = res.result.tools;
-  assert.strictEqual(list.length, 14);
+  assert.strictEqual(list.length, 16);
   for (const tool of list) {
     assert.ok(tool.name.startsWith('an5_'), `Tool name should be prefixed: ${tool.name}`);
     assert.ok(tool.description && tool.description.length > 20, `${tool.name} needs a description`);

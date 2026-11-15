@@ -83,16 +83,37 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
     {
       name: 'an5_list_models',
       description:
-        'List every model defined in the project .an5 schema files, with its physical table, field count and relation count. Start here to discover what data the project models.',
-      inputSchema: { type: 'object', properties: {} },
+        'List models defined in the project .an5 schema files, with physical table, field count and relation count. Supports search and pagination to keep token usage low on large schemas.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          search: { type: 'string', description: 'Optional case-insensitive filter on model name, table name, or description' },
+          limit: { type: 'number', description: 'Max models to return (default 50, max 200)' },
+          offset: { type: 'number', description: 'Pagination offset (default 0)' },
+        },
+      },
       annotations: { title: 'List AN5 models', ...readOnly },
-      async handler() {
+      async handler(args) {
         const ws = resolve();
-        const models = await loadSchemaModels(ws);
+        const allModels = await loadSchemaModels(ws);
+        const query = typeof args.search === 'string' ? args.search.trim().toLowerCase() : '';
+        const filtered = query
+          ? allModels.filter(m =>
+              m.name.toLowerCase().includes(query) ||
+              qualifiedTable(m).toLowerCase().includes(query) ||
+              (m.description || '').toLowerCase().includes(query))
+          : allModels;
+        const limit = typeof args.limit === 'number' && args.limit > 0 ? Math.min(Math.floor(args.limit), 200) : 50;
+        const offset = typeof args.offset === 'number' && args.offset >= 0 ? Math.floor(args.offset) : 0;
+        const slice = filtered.slice(offset, offset + limit);
         return json({
           schemaDir: path.relative(ws.root, ws.schemaDir) || '.',
-          totalModels: models.length,
-          models: models.map((m) => ({
+          totalModels: allModels.length,
+          matchedModels: filtered.length,
+          offset,
+          limit,
+          hasMore: offset + slice.length < filtered.length,
+          models: slice.map((m) => ({
             name: m.name,
             table: qualifiedTable(m),
             fields: m.fields.length,
@@ -243,6 +264,62 @@ export function createTools(resolve: () => Workspace = () => resolveWorkspace())
         } finally {
           await adapter.$disconnect().catch(() => undefined);
         }
+      },
+    },
+
+    {
+      name: 'an5_verify_query',
+      description:
+        'Verify a read-only SELECT query against the live database, returning column names, latency, and up to 5 sample rows, or an actionable error hint.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sql: { type: 'string', description: 'A single SELECT statement to verify against the database' },
+        },
+        required: ['sql'],
+      },
+      annotations: { title: 'Verify an AN5 SQL query', ...readOnly },
+      async handler(args) {
+        const sql = String(args.sql).trim();
+        assertSelectQuery(sql);
+        const ws = resolve();
+        const { createAn5Adapter } = loadAdapters(ws);
+        const adapter = await createAn5Adapter({ connectionString: ws.connectionString });
+        const started = Date.now();
+        try {
+          await adapter.$connect();
+          const rows = await adapter.exec(sql, {});
+          const list = Array.isArray(rows) ? rows : [];
+          const columns = list.length && list[0] && typeof list[0] === 'object' ? Object.keys(list[0]) : [];
+          return json({
+            valid: true,
+            latencyMs: Date.now() - started,
+            rowCount: list.length,
+            columns,
+            sampleRows: list.slice(0, 5),
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return json({
+            valid: false,
+            latencyMs: Date.now() - started,
+            error: message,
+            hint: 'Check table/column names with an5_describe_table or an5_list_models, or run db:push if the table has not been created yet.',
+          });
+        } finally {
+          await adapter.$disconnect().catch(() => undefined);
+        }
+      },
+    },
+
+    {
+      name: 'an5_preview_push',
+      description:
+        'Preview the DDL changes that db:push would apply from the .an5 schema without modifying the database (dry-run).',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { title: 'Preview AN5 schema push (dry-run)', ...readOnly },
+      async handler() {
+        return runOrmScript(resolve(), 'db:push', ['--dry-run']);
       },
     },
 

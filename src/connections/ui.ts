@@ -6,9 +6,10 @@ import { createHash, randomBytes } from 'crypto';
 import { projectConnection, projectRoots } from './project';
 import { ConnectionStore, ConnectionProfile, providerOf } from './store';
 import { nodeRuntime } from '../node-runtime';
-import { testConnection, normalizeConnectionString } from './runtime';
+import { runExplorer, testConnection, normalizeConnectionString } from './runtime';
 import { saveConnectionToEnv, saveConnectionToConfig } from './project-writer';
 import { resolveWorkspace } from '../mcp/workspace';
+import { parseSchemaFiles } from '../mcp/fallback-parser';
 import { projectSettings, saveProjectSettings } from './project-settings';
 import { authorizeGoogle, GoogleClient, googleConnection, googleSpreadsheets, parseGoogleClient } from './google-oauth';
 
@@ -49,6 +50,15 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
           const changed = syncAgentSkills(folder.uri.fsPath, this.context.extensionPath);
           vscode.window.showInformationMessage(changed.length ? `AN5 agent skills synced to ${folder.name}.` : 'AN5 agent skills are already up to date.');
           await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.joinPath(folder.uri, 'AGENTS.md')));
+        } catch (error) { vscode.window.showErrorMessage((error as Error).message); }
+      },
+      'an5.agentSkills.syncAllIdes': async (target?: vscode.WorkspaceFolder) => {
+        this.requireTrust();
+        const folder = target || await this.pickFolder();
+        if (!folder) return;
+        try {
+          const changed = syncAgentSkills(folder.uri.fsPath, this.context.extensionPath, { includeAllIdes: true });
+          vscode.window.showInformationMessage(changed.length ? `Synced AI IDE rules (${changed.join(', ')}).` : 'All AI IDE rules are already up to date.');
         } catch (error) { vscode.window.showErrorMessage((error as Error).message); }
       },
       'an5.connections.manage': (entry?: Entry) => this.open(entry),
@@ -178,7 +188,12 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     const state = this.store.list(folder.uri.toString());
     const configPath = ['an5Orm.config.js', 'an5Orm.config.cjs'].find(name => fs.existsSync(path.join(folder.uri.fsPath, name)));
     const trusted = vscode.workspace.isTrusted;
-    const settings = trusted ? projectSettings(resolveWorkspace(folder.uri.fsPath).config) : undefined;
+    const ws = trusted ? resolveWorkspace(folder.uri.fsPath) : undefined;
+    const settings = ws ? projectSettings(ws.config) : undefined;
+    const models = ws && ws.schemaFiles.length
+      ? parseSchemaFiles(ws.schemaFiles.map(f => ({ path: f, contents: (() => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } })() })))
+        .map(m => ({ name: m.name, tableName: m.tableName || m.name, hasVector: m.fields.some(f => /^Vector/i.test(f.sqlType)), fields: m.fields }))
+      : [];
     const googleConfigured = !!await this.context.secrets.get(this.googleClientKey(folder));
     const projectConn = trusted ? projectConnection(folder.uri.fsPath) : undefined;
     const profiles = await Promise.all(this.profiles(folder).map(async p => {
@@ -188,7 +203,7 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
       return { ...p, connectionString, status: this.statuses.get(`${folder.uri.toString()}:${p.id}`) };
     }));
     await this.panel.webview.postMessage({ type: 'state', workspace: folder.name, root: folder.uri.fsPath, configPath,
-      trusted, settings, googleConfigured, googleLocal: !vscode.env.remoteName, selectedId: this.selectedId, configureMode: this.configureMode, activeId: state.activeId || (this.profiles(folder).some(p => p.project) ? 'project' : undefined), busy: this.busy,
+      trusted, settings, models, googleConfigured, googleLocal: !vscode.env.remoteName, selectedId: this.selectedId, configureMode: this.configureMode, activeId: state.activeId || (this.profiles(folder).some(p => p.project) ? 'project' : undefined), busy: this.busy,
       profiles });
   }
   private async message(message: unknown): Promise<void> {
@@ -360,8 +375,46 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
         case 'reference':
           await vscode.env.clipboard.writeText('connectionString: process.env.DATABASE_URL,');
           this.notify('Config reference copied. Paste inside module.exports in an5Orm.config.'); break;
+        case 'explorer': {
+          this.requireTrust();
+          const action = m.action === 'tables' || m.action === 'rows' || m.action === 'seed' || m.action === 'vector' ? m.action : 'rows';
+          const table = typeof m.table === 'string' ? m.table.trim() : '';
+          if (action !== 'tables' && !table) throw new Error('Select a table or collection first.');
+          const activeEnv = await this.environment(folder);
+          const cs = activeEnv.DATABASE_URL || resolveWorkspace(folder.uri.fsPath).connectionString;
+          if (!cs) throw new Error('Activate or configure a connection first.');
+          const runtime = nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath'));
+          let sampleRow: Record<string, unknown> | undefined;
+          if (action === 'seed') {
+            const ws = resolveWorkspace(folder.uri.fsPath);
+            const models = parseSchemaFiles(ws.schemaFiles.map(f => ({ path: f, contents: (() => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } })() })));
+            const model = models.find(md => md.name === table || md.tableName === table);
+            sampleRow = {};
+            const suffix = Math.floor(Math.random() * 9000 + 1000);
+            for (const f of model?.fields || []) {
+              const t = f.sqlType.toLowerCase();
+              if (f.name === 'id' && /char|text|uuid|string/.test(t)) { sampleRow[f.name] = `sample-${suffix}`; continue; }
+              if (/vector/.test(t)) sampleRow[f.name] = [0.1, 0.2, 0.3, 0.4];
+              else if (/int|serial/.test(t)) sampleRow[f.name] = suffix % 100;
+              else if (/float|double|decimal|numeric|real/.test(t)) sampleRow[f.name] = Number(((suffix % 100) / 10).toFixed(2));
+              else if (/bool|bit/.test(t)) sampleRow[f.name] = true;
+              else if (/date|time/.test(t)) sampleRow[f.name] = new Date().toISOString();
+              else if (/json/.test(t)) sampleRow[f.name] = { sample: true };
+              else sampleRow[f.name] = f.name === 'email' ? `vibe${suffix}@example.com` : `${f.name}_${suffix}`;
+            }
+          }
+          const vector = Array.isArray(m.vector) ? m.vector.map(Number) : undefined;
+          const topK = typeof m.topK === 'number' ? m.topK : 5;
+          try {
+            const res = await runExplorer(folder.uri.fsPath, cs, { action, table, row: sampleRow, vector, topK }, runtime);
+            void this.panel?.webview.postMessage({ type: 'explorerResult', action, table, ...res });
+          } catch (err) {
+            void this.panel?.webview.postMessage({ type: 'explorerError', error: err instanceof Error ? err.message : String(err) });
+          }
+          break;
+        }
         case 'action': {
-          const allowed: Record<string, string> = { skills: 'an5.agentSkills.sync', config: 'an5.openConfig', generate: 'an5.generate', push: 'an5.push', pull: 'an5.pull', mcp: 'an5.mcp.install', servers: 'workbench.mcp.listServer' };
+          const allowed: Record<string, string> = { skills: 'an5.agentSkills.sync', skillsAll: 'an5.agentSkills.syncAllIdes', config: 'an5.openConfig', generate: 'an5.generate', push: 'an5.push', pull: 'an5.pull', mcp: 'an5.mcp.install', servers: 'workbench.mcp.listServer' };
           if (m.action === 'schema') {
             this.requireTrust();
             const ws = resolveWorkspace(folder.uri.fsPath);

@@ -34,3 +34,32 @@ export async function testConnection(root: string, connectionString: string, run
     });
   });
 }
+
+export async function runExplorer(
+  root: string,
+  connectionString: string,
+  request: { action: 'tables' | 'rows' | 'seed' | 'vector'; table?: string; row?: Record<string, unknown>; vector?: number[]; topK?: number },
+  runtime: NodeRuntime = nodeRuntime(),
+): Promise<Record<string, unknown>> {
+  const value = normalizeConnectionString(root, connectionString);
+  return new Promise((resolve, reject) => {
+    execFile(runtime.command, [path.join(__dirname, 'probe.js')], {
+      cwd: root,
+      env: { ...process.env, ...runtime.env, DATABASE_URL: value, AN5_EXPLORER_REQ: JSON.stringify(request) },
+      timeout: 15000,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true,
+    }, (error, stdout, stderr) => {
+      if (error) {
+        const detail = (stderr || '').trim();
+        reject(new Error(detail || 'Explorer query failed.'));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error('Explorer did not return valid JSON.'));
+      }
+    });
+  });
+}

@@ -397,6 +397,36 @@
     $('pageHelp').textContent = next.configureMode ? 'Enter database details, test the connection, and choose where to save it.' : 'Manage project settings, connections, schema, clients and agent tools.';
     if (next.root !== lastRoot) { settingsDirty = false; edit(); lastSelection = undefined; lastRoot = next.root; }
     if (!settingsDirty) settingKeys.forEach(key => { $(key).value = next.settings?.[key] || ''; });
+    const modelSel = $('explorerModel');
+    if (modelSel) {
+      const prev = modelSel.value;
+      const seen = new Set();
+      modelSel.innerHTML = '<option value="">Select table / model...</option>';
+      for (const md of (Array.isArray(next.models) ? next.models : [])) {
+        const val = md.tableName || md.name;
+        if (!val || seen.has(val)) continue;
+        seen.add(val);
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = md.hasVector ? `${md.name} (Vector model)` : `${md.name} (Schema model)`;
+        modelSel.appendChild(opt);
+      }
+      for (const tbl of (Array.isArray(window.__an5LiveTables) ? window.__an5LiveTables : [])) {
+        if (!tbl || seen.has(tbl)) continue;
+        seen.add(tbl);
+        const opt = document.createElement('option');
+        opt.value = tbl;
+        opt.textContent = `${tbl} (Database table)`;
+        modelSel.appendChild(opt);
+      }
+      if (prev && [...modelSel.options].some(o => o.value === prev)) modelSel.value = prev;
+      else if (modelSel.options.length > 1) modelSel.selectedIndex = 1;
+    }
+    const connKey = `${next.root || ''}:${next.activeId || ''}`;
+    if (next.trusted && !next.configureMode && window.__an5LoadedConn !== connKey) {
+      window.__an5LoadedConn = connKey;
+      send('explorer', { action: 'tables' });
+    }
     $('googleStatus').textContent = next.googleLocal === false ? 'Desktop Google sign-in is available in a local VS Code window.' : next.googleConfigured ? 'OAuth application ready. Sign in to select a spreadsheet.' : 'First, import or enter your Google Desktop OAuth application.';
     $('project').textContent = next.workspace;
     $('root').textContent = next.root;
@@ -537,6 +567,60 @@
   for (const id of ['import', 'default', 'reference', 'workspace']) $(id).addEventListener('click', () => send(id));
   document.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', () => send('action', { action: el.dataset.action })));
 
+  $('explorerRefreshTables')?.addEventListener('click', () => {
+    $('explorerStatus').textContent = 'Loading tables & collections...';
+    $('explorerStatus').classList.remove('hidden');
+    send('explorer', { action: 'tables' });
+  });
+  $('explorerVectorMode')?.addEventListener('change', () => {
+    $('explorerVector')?.classList.toggle('hidden', $('explorerVectorMode').value !== 'custom');
+  });
+  $('explorerLoadRows')?.addEventListener('click', () => {
+    const table = ($('explorerModel')?.value || '').trim();
+    if (!table) { showError('Select a table or model first.'); return; }
+    $('explorerStatus').textContent = `Loading rows from ${table}...`;
+    $('explorerStatus').classList.remove('hidden');
+    send('explorer', { action: 'rows', table });
+  });
+  $('explorerSeedRow')?.addEventListener('click', () => {
+    const table = ($('explorerModel')?.value || '').trim();
+    if (!table) { showError('Select a table or model first.'); return; }
+    $('explorerStatus').textContent = `Seeding sample row in ${table}...`;
+    $('explorerStatus').classList.remove('hidden');
+    send('explorer', { action: 'seed', table });
+  });
+  $('explorerVectorSearch')?.addEventListener('click', () => {
+    const table = ($('explorerModel')?.value || '').trim();
+    if (!table) { showError('Select a table or collection first.'); return; }
+    const mode = $('explorerVectorMode')?.value || 'auto';
+    let vector = [0.1, 0.2, 0.3, 0.4];
+    if (mode === 'custom') {
+      const rawVec = ($('explorerVector')?.value || '').trim();
+      try {
+        const parsed = JSON.parse(rawVec);
+        if (!Array.isArray(parsed) || !parsed.length) throw new Error();
+        vector = parsed.map(Number);
+      } catch {
+        showError('Vector query must be a JSON array of numbers, e.g. [0.1, 0.2, 0.3, 0.4].');
+        return;
+      }
+    } else if (mode.startsWith('row:')) {
+      const idx = Number(mode.slice(4));
+      const rowVec = window.__an5RowVectors?.[idx];
+      if (Array.isArray(rowVec) && rowVec.length) vector = rowVec.map(Number);
+    } else {
+      const md = (state.models || []).find(m => (m.tableName || m.name) === table);
+      const vecField = md?.fields?.find(f => /^Vector/i.test(f.sqlType));
+      const dimMatch = vecField?.sqlType?.match(/Vector\((\d+)\)/i);
+      const dim = dimMatch ? Math.min(Number(dimMatch[1]), 1536) : 4;
+      vector = Array.from({ length: dim }, (_, i) => Number((((i % 4) + 1) * 0.1).toFixed(2)));
+    }
+    const topK = Number($('explorerTopK')?.value || 5);
+    $('explorerStatus').textContent = `Running vector search on ${table}...`;
+    $('explorerStatus').classList.remove('hidden');
+    send('explorer', { action: 'vector', table, vector, topK });
+  });
+
   window.addEventListener('message', event => {
     const m = event.data;
     if (m.type === 'state') render(m);
@@ -564,6 +648,79 @@
     if (m.type === 'sqliteChosen') {
       $('fSqlitePath').value = m.path;
       updateUriFromBuilder();
+    }
+    if (m.type === 'explorerError') {
+      $('explorerStatus').textContent = m.error;
+      $('explorerStatus').classList.remove('hidden');
+      $('explorerResults').classList.add('hidden');
+    }
+    if (m.type === 'explorerResult') {
+      const st = $('explorerStatus');
+      const box = $('explorerResults');
+      st.classList.remove('hidden');
+      if (m.action === 'tables') {
+        window.__an5LiveTables = Array.isArray(m.tables) ? m.tables : [];
+        render(state);
+        st.textContent = `Loaded ${window.__an5LiveTables.length} table(s)/collection(s) (${m.latencyMs || 0} ms).`;
+        return;
+      }
+      if (m.action === 'seed' && !Array.isArray(m.rows)) {
+        st.textContent = `Seeded sample row in ${m.table} (${m.latencyMs || 0} ms).`;
+        return;
+      }
+      const rows = Array.isArray(m.rows) ? m.rows : [];
+      window.__an5RowVectors = [];
+      const vecMode = $('explorerVectorMode');
+      if (vecMode) {
+        vecMode.innerHTML = '<option value="auto">Vector: Auto sample (match schema)</option>';
+        rows.forEach((r, idx) => {
+          if (!r || typeof r !== 'object') return;
+          for (const v of Object.values(r)) {
+            let arr = Array.isArray(v) ? v : null;
+            if (!arr && typeof v === 'string' && v.startsWith('[')) {
+              try { const p = JSON.parse(v); if (Array.isArray(p) && p.length && typeof p[0] === 'number') arr = p; } catch {}
+            }
+            if (arr && arr.length && typeof arr[0] === 'number') {
+              const slot = window.__an5RowVectors.push(arr) - 1;
+              const opt = document.createElement('option');
+              opt.value = `row:${slot}`;
+              opt.textContent = `Vector: From row #${idx + 1}${r.id !== undefined ? ` (id=${r.id})` : ''}`;
+              vecMode.appendChild(opt);
+              break;
+            }
+          }
+        });
+        const customOpt = document.createElement('option');
+        customOpt.value = 'custom';
+        customOpt.textContent = 'Vector: Custom JSON...';
+        vecMode.appendChild(customOpt);
+        $('explorerVector')?.classList.add('hidden');
+      }
+      st.textContent = m.note || `${rows.length} row(s) from ${m.table} (${m.latencyMs || 0} ms)`;
+      box.innerHTML = '';
+      if (!rows.length) { box.classList.add('hidden'); return; }
+      const cols = [...new Set(rows.flatMap(r => (r && typeof r === 'object' ? Object.keys(r) : [])))];
+      const tbl = document.createElement('table');
+      tbl.className = 'explorer-table';
+      const thead = document.createElement('thead');
+      const htr = document.createElement('tr');
+      for (const c of cols) { const th = document.createElement('th'); th.textContent = c; htr.appendChild(th); }
+      thead.appendChild(htr);
+      tbl.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        for (const c of cols) {
+          const td = document.createElement('td');
+          const v = r?.[c];
+          td.textContent = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      tbl.appendChild(tbody);
+      box.appendChild(tbl);
+      box.classList.remove('hidden');
     }
   });
 

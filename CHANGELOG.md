@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.5] - 2026-11-15
+
+### Added
+- **Data & Vector Explorer**: Browse live database tables/collections, load rows, seed sample rows from `.an5` schemas, and run vector similarity searches directly inside Workspace Tooling.
+- **Multi-IDE AI Context Sync (`AN5: Sync All AI IDE Rules`)**: Sync unified, token-compact AN5 rules across `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, and `.cursor/rules/an5-orm.mdc`.
+- **MCP `an5_verify_query` & `an5_preview_push`**: Read-only tools for verifying `SELECT` queries with live sample rows/latency and previewing `db:push --dry-run` DDL output.
+- **Token-efficient `an5_list_models`**: Added `search`, `limit`, and `offset` pagination for large schemas.
+
+### Fixed
+- Fixed SQL table listing and row loading on older `@an5/adapters` versions where Proxy property traps made `adapter.vectorStoreOnly` truthy (`isVectorOnlyAdapter` now checks strict boolean equality).
+
 ## [1.3.4] - 2026-11-15
 
 ### Fixed
