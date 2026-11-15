@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.3] - 2026-11-15
+
+### Added
+- Added UI and connection probe support for vector database providers (`qdrant`, `chroma`, `pinecone`, `weaviate`, `milvus`) alongside `nbase`.
+- Added `vector` schema snippet for vector field definitions.
+
+### Fixed
+- Fixed `javaDir`, `kotlinDir`, and `swiftDir` extension setting resolution.
+
 ## [1.3.2] - 2026-11-07
 
 - Add direct Edit action for project connection cards in Workspace Tooling, prefilling metadata, preserving credentials, and targeting the source configuration or secure store.
