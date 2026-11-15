@@ -234,6 +234,7 @@
 
   function showError(text) {
     $('notice').textContent = text; $('notice').classList.remove('hidden'); $('notice').classList.add('error');
+    $('notice').scrollIntoView({ block: 'nearest' });
   }
   function maskUri(value) {
     return value.replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@').replace(/((?:password|pwd|privateKey|apiKey|token|accessToken|refreshToken|oauthClientSecret)=)[^;&]*/gi, '$1••••••••');
@@ -241,7 +242,7 @@
   function parseUriToBuilder(uri) {
     const cs = uri.trim(); if (!cs) return true;
     try {
-      if (/^(sqlite:|:memory:$)/i.test(cs)) { setProvider('sqlite', true); $('fSqlitePath').value = cs.replace(/^sqlite:/i, ''); return true; }
+      if (/^(?:sqlite:|file:|:memory:$)/i.test(cs)) { setProvider('sqlite', true); $('fSqlitePath').value = cs.replace(/^(?:sqlite|file):(?:\/\/)?/i, ''); return true; }
       if (/^googlesheets:\/\//i.test(cs)) {
         const [spreadsheetId, ...options] = cs.slice('googlesheets://'.length).split(';');
         if (/[?#/]/.test(spreadsheetId)) return false;
@@ -285,6 +286,29 @@
         $('fVectorCollection').value = parsed.searchParams.get('collection') || parsed.searchParams.get('className') || parsed.searchParams.get('namespace') || '';
         $('fVectorExtra').value = parsed.searchParams.get('method') || parsed.searchParams.get('tenant') || parsed.searchParams.get('dbName') || parsed.searchParams.get('timeoutMs') || '';
         $('fVectorToken').value = parsed.searchParams.get('apiKey') || parsed.searchParams.get('token') || '';
+        return true;
+      }
+      const mssqlSemi = cs.match(/^(?:sqlserver|mssql):\/\/([^;?]+);(.+)$/i);
+      if (mssqlSemi) {
+        const parsedAuthHost = new URL(`http://${mssqlSemi[1]}`);
+        const values = {};
+        const allowedKeys = new Set(['database', 'initial catalog', 'user', 'user id', 'uid', 'password', 'pwd', 'trustservercertificate', 'encrypt']);
+        for (const part of mssqlSemi[2].split(';')) {
+          if (!part.trim()) continue;
+          const eq = part.indexOf('=');
+          if (eq < 1) return false;
+          const k = part.slice(0, eq).trim().toLowerCase();
+          if (!allowedKeys.has(k)) return false;
+          values[k] = part.slice(eq + 1).trim();
+        }
+        setProvider('mssql', true);
+        $('fHost').value = parsedAuthHost.hostname;
+        $('fPort').value = parsedAuthHost.port || defaultPorts.mssql;
+        $('fDatabase').value = values.database || values['initial catalog'] || '';
+        $('fUser').value = values.user || values['user id'] || values.uid || decodeURIComponent(parsedAuthHost.username);
+        $('fPassword').value = values.password || values.pwd || decodeURIComponent(parsedAuthHost.password);
+        $('fTrustServerCertificate').checked = (values.trustservercertificate || '').toLowerCase() === 'true';
+        $('fEncrypt').checked = (values.encrypt || '').toLowerCase() === 'true';
         return true;
       }
       const url = new URL(cs);
@@ -339,8 +363,21 @@
 
     if (profile) {
       const p = providerNames[profile.provider] ? profile.provider : 'postgres';
-      setProvider(p, true);
-      setTab('raw'); $('previewUri').textContent = 'Saved credentials preserved';
+      const cs = typeof profile.connectionString === 'string' ? profile.connectionString.trim() : '';
+      if (cs) {
+        $('connectionString').value = cs;
+        if (parseUriToBuilder(cs)) {
+          setTab('builder');
+        } else {
+          setProvider(p, true);
+          setTab('raw');
+        }
+        $('previewUri').textContent = maskUri(cs);
+      } else {
+        setProvider(p, true);
+        setTab('raw');
+        $('previewUri').textContent = 'Saved credentials preserved';
+      }
     } else {
       setProvider('postgres', true); setTab('builder');
       $('previewUri').textContent = buildUri(true);

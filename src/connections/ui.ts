@@ -177,11 +177,19 @@ export class ConnectionUi implements vscode.TreeDataProvider<Entry>, vscode.Disp
     const folder = this.folder;
     const state = this.store.list(folder.uri.toString());
     const configPath = ['an5Orm.config.js', 'an5Orm.config.cjs'].find(name => fs.existsSync(path.join(folder.uri.fsPath, name)));
-    const settings = vscode.workspace.isTrusted ? projectSettings(resolveWorkspace(folder.uri.fsPath).config) : undefined;
+    const trusted = vscode.workspace.isTrusted;
+    const settings = trusted ? projectSettings(resolveWorkspace(folder.uri.fsPath).config) : undefined;
     const googleConfigured = !!await this.context.secrets.get(this.googleClientKey(folder));
+    const projectConn = trusted ? projectConnection(folder.uri.fsPath) : undefined;
+    const profiles = await Promise.all(this.profiles(folder).map(async p => {
+      const connectionString = trusted
+        ? (p.project ? projectConn?.connectionString : await this.store.secret(folder.uri.toString(), p.id))
+        : undefined;
+      return { ...p, connectionString, status: this.statuses.get(`${folder.uri.toString()}:${p.id}`) };
+    }));
     await this.panel.webview.postMessage({ type: 'state', workspace: folder.name, root: folder.uri.fsPath, configPath,
-      trusted: vscode.workspace.isTrusted, settings, googleConfigured, googleLocal: !vscode.env.remoteName, selectedId: this.selectedId, configureMode: this.configureMode, activeId: state.activeId || (this.profiles(folder).some(p => p.project) ? 'project' : undefined), busy: this.busy,
-      profiles: this.profiles(folder).map(p => ({ ...p, status: this.statuses.get(`${folder.uri.toString()}:${p.id}`) })) });
+      trusted, settings, googleConfigured, googleLocal: !vscode.env.remoteName, selectedId: this.selectedId, configureMode: this.configureMode, activeId: state.activeId || (this.profiles(folder).some(p => p.project) ? 'project' : undefined), busy: this.busy,
+      profiles });
   }
   private async message(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object' || !this.folder) return;

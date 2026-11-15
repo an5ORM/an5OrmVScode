@@ -100,6 +100,17 @@ test('connection webview handles edits, XSS names, busy state and narrow layouts
       window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,root:'/other/workspace',googleConfigured:true,busy:false}}));
       document.getElementById('googleSignIn').click();
       check(window.sent.some(m=>m.type==='googleSignIn'&&m.root==='/other/workspace'), 'Google sign-in must use the selected project');
+      const pgUri='postgresql://alice:secret@db.example.com:5433/appdb?sslmode=require';
+      window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,root:'/other/workspace',profiles:[{id:'pg1',name:'Prod PG',provider:'postgres',connectionString:pgUri}],busy:false}}));
+      [...document.querySelectorAll('.profile-actions button')].find(b=>b.textContent==='Edit').click();
+      check(!document.getElementById('builderSection').classList.contains('hidden'), 'Edit with connectionString must open Visual Builder');
+      check(document.getElementById('connectionString').value===pgUri, 'Edit must load connectionString URL');
+      check(document.getElementById('fHost').value==='db.example.com'&&document.getElementById('fPort').value==='5433'&&document.getElementById('fDatabase').value==='appdb'&&document.getElementById('fUser').value==='alice'&&document.getElementById('fPassword').value==='secret'&&document.getElementById('fSsl').value==='require', 'Edit must populate Visual Builder fields');
+      const mssqlUri='sqlserver://localhost:1433;database=mydb;user=sa;password=secret;trustServerCertificate=true;encrypt=false';
+      window.dispatchEvent(new MessageEvent('message',{data:{...window.fixture,root:'/other/workspace',profiles:[{id:'ms1',name:'Local MSSQL',provider:'mssql',connectionString:mssqlUri}],busy:false}}));
+      [...document.querySelectorAll('.profile-actions button')].find(b=>b.textContent==='Edit').click();
+      check(!document.getElementById('builderSection').classList.contains('hidden'), 'Edit with semicolon sqlserver URI must open Visual Builder');
+      check(document.getElementById('fHost').value==='localhost'&&document.getElementById('fPort').value==='1433'&&document.getElementById('fDatabase').value==='mydb'&&document.getElementById('fUser').value==='sa'&&document.getElementById('fPassword').value==='secret'&&document.getElementById('fTrustServerCertificate').checked&&!document.getElementById('fEncrypt').checked, 'Edit must populate MSSQL semicolon fields');
 
       document.body.dataset.testResult='passed';
     }catch(e){document.body.dataset.testResult='failed: '+e.message}},200);`;
