@@ -18,7 +18,7 @@ export async function testConnection(root: string, connectionString: string, run
       if (error) {
         const detail = (stderr || '').trim();
         const safeDetail = detail
-          ? detail.replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@').replace(/((?:password|pwd|privateKey|apiKey|accessToken|refreshToken)=)[^;&\s]*/gi, '$1••••••••')
+          ? detail.replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@').replace(/((?:password|pwd|privateKey|apiKey|token|accessToken|refreshToken)=)[^;&\s]*/gi, '$1••••••••')
           : '';
         const msg = safeDetail
           ? `Connection failed: ${safeDetail}`

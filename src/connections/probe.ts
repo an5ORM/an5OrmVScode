@@ -36,7 +36,7 @@ function sanitizeError(err: unknown): string {
     : String(err);
   return message
     .replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@')
-    .replace(/((?:password|pwd|privateKey|apiKey|accessToken|refreshToken)=)[^;&\s]*/gi, '$1••••••••');
+    .replace(/((?:password|pwd|privateKey|apiKey|token|accessToken|refreshToken)=)[^;&\s]*/gi, '$1••••••••');
 }
 
 async function main(): Promise<void> {
@@ -46,8 +46,16 @@ async function main(): Promise<void> {
     adapter = mod.createAn5Adapter({ connectionString: process.env.DATABASE_URL, connectionTimeout: 10000, requestTimeout: 10000 });
     const started = Date.now();
     await adapter.$connect();
-    await adapter.exec('SELECT 1 AS an5_connection_test', {});
-    process.stdout.write(JSON.stringify({ latencyMs: Date.now() - started, provider: adapter.dialect }));
+    if (adapter.vectorStoreOnly || adapter.nbaseOnly) {
+      const health = typeof adapter.$vectorHealth === 'function' ? await adapter.$vectorHealth() : null;
+      if (health && !health.ok) {
+        throw new Error(health.error || `Vector store (${health.provider || adapter.dialect}) health check failed.`);
+      }
+      process.stdout.write(JSON.stringify({ latencyMs: Date.now() - started, provider: (health && health.provider) || adapter.dialect }));
+    } else {
+      await adapter.exec('SELECT 1 AS an5_connection_test', {});
+      process.stdout.write(JSON.stringify({ latencyMs: Date.now() - started, provider: adapter.dialect }));
+    }
   } catch (err) {
     process.stderr.write(sanitizeError(err));
     process.exitCode = 1;

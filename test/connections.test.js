@@ -59,6 +59,13 @@ test('provider detection and relative SQLite paths match supported adapter forma
   assert.equal(providerOf('POSTGRESQL://host/db'), 'postgres');
   assert.equal(providerOf('Server=localhost;Database=db;Password=test'), 'mssql');
   assert.equal(providerOf('mariadb://host/db'), 'mysql');
+  assert.equal(providerOf('nbase://localhost:1307'), 'nbase');
+  assert.equal(providerOf('qdrant://localhost:6333?collection=articles'), 'qdrant');
+  assert.equal(providerOf('qdrant:https://cloud.qdrant.io:6333?apiKey=secret'), 'qdrant');
+  assert.equal(providerOf('chroma://localhost:8000?collection=articles'), 'chroma');
+  assert.equal(providerOf('pinecone:https://my-index.svc.region.pinecone.io?apiKey=pcsk'), 'pinecone');
+  assert.equal(providerOf('weaviate://localhost:8080?className=Article'), 'weaviate');
+  assert.equal(providerOf('milvus://localhost:19530?collection=articles'), 'milvus');
   assert.equal(normalizeConnectionString('/tmp/project', 'sqlite:./test.sqlite'), 'sqlite:/tmp/project/test.sqlite');
   assert.equal(normalizeConnectionString('/tmp/project', 'sqlite::memory:'), ':memory:');
 });

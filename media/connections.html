@@ -12,6 +12,11 @@
 <button type="button" class="chip" data-provider="sqlite"><span class="chip-icon">📁</span> SQLite</button>
 <button type="button" class="chip" data-provider="googlesheets"><span class="chip-icon">📊</span> Sheets</button>
 <button type="button" class="chip" data-provider="nbase"><span class="chip-icon">⚡</span> NBase</button>
+<button type="button" class="chip" data-provider="qdrant"><span class="chip-icon">🧭</span> Qdrant</button>
+<button type="button" class="chip" data-provider="chroma"><span class="chip-icon">🎨</span> Chroma</button>
+<button type="button" class="chip" data-provider="pinecone"><span class="chip-icon">🌲</span> Pinecone</button>
+<button type="button" class="chip" data-provider="weaviate"><span class="chip-icon">🕸️</span> Weaviate</button>
+<button type="button" class="chip" data-provider="milvus"><span class="chip-icon">🔷</span> Milvus</button>
 </div></div>
 <div class="tab-strip"><button type="button" class="tab-item active" id="tabBuilder">Visual Builder</button><button type="button" class="tab-item" id="tabRaw">Raw Connection String</button></div>
 <div class="field-group"><label for="name">Connection name</label><input id="name" name="name" maxlength="80" placeholder="Development · PostgreSQL" required autocomplete="off"></div>
@@ -33,6 +38,14 @@
 <div class="field-col"><label for="fClientEmail">Service Account Email</label><input id="fClientEmail" placeholder="service-account@project.iam.gserviceaccount.com" autocomplete="off"></div>
 <div class="field-col"><label for="fApiKey">API Key (Optional / Browser)</label><input id="fApiKey" type="password" placeholder="AIzaSy..." autocomplete="off"></div>
 <div class="field-col field-col-full"><label for="fPrivateKey">Private Key</label><input id="fPrivateKey" type="password" placeholder="-----BEGIN PRIVATE KEY-----..."></div></div></details>
+</div>
+<div id="vectorFields" class="form-grid hidden">
+<div class="field-col"><label for="fVectorHost">Host / Endpoint</label><input id="fVectorHost" placeholder="localhost" value="localhost" autocomplete="off"></div>
+<div class="field-col field-col-sm"><label for="fVectorPort">Port (Optional)</label><input id="fVectorPort" min="1" max="65535" type="number" placeholder="6333" autocomplete="off"></div>
+<div class="field-col"><label for="fVectorCollection" id="lVectorCollection">Collection / Class / Namespace</label><input id="fVectorCollection" placeholder="articles" autocomplete="off"></div>
+<div class="field-col"><label for="fVectorExtra" id="lVectorExtra">Tenant / Database / Method</label><input id="fVectorExtra" placeholder="optional" autocomplete="off"></div>
+<div class="field-col field-col-full"><label for="fVectorToken">API Key / Token (Optional)</label><div class="password-wrap"><input id="fVectorToken" type="password" placeholder="••••••••" autocomplete="new-password"><button type="button" id="toggleVectorToken" class="icon-btn" title="Toggle visibility">👁</button></div></div>
+<div class="field-col field-col-full"><label class="checkbox-label"><input type="checkbox" id="fVectorHttps"><span>Use HTTPS / Cloud TLS (e.g. Qdrant Cloud, Pinecone, Zilliz Cloud)</span></label></div>
 </div>
 </div>
 <div id="rawSection" class="raw-section hidden"><label for="connectionString">Connection string URL</label><input id="connectionString" name="connectionString" type="password" placeholder="postgresql://user:password@host:5432/database" autocomplete="new-password" spellcheck="false"></div>

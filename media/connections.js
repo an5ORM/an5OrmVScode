@@ -10,7 +10,8 @@
   let activeTab = 'builder';
   let draftChanged = false;
   let settingsDirty = false;
-  const settingKeys = ['schemaDir', 'typescriptDir', 'typescriptMetadata', 'pythonMetadata', 'dotnetDir', 'golangDir', 'rustDir'];
+  const settingKeys = ['schemaDir', 'typescriptDir', 'typescriptMetadata', 'pythonMetadata', 'dotnetDir', 'golangDir', 'rustDir', 'javaDir', 'kotlinDir', 'swiftDir'];
+  const vectorProviders = ['nbase', 'qdrant', 'chroma', 'pinecone', 'weaviate', 'milvus'];
 
   const send = (type, data = {}) => vscode.postMessage({ type, root: state.root, ...data });
 
@@ -18,7 +19,12 @@
     postgres: '5432',
     mysql: '3306',
     mssql: '1433',
-    nbase: '1307'
+    nbase: '1307',
+    qdrant: '6333',
+    chroma: '8000',
+    pinecone: '',
+    weaviate: '8080',
+    milvus: '19530'
   };
 
   const providerNames = {
@@ -27,11 +33,21 @@
     mssql: 'SQL Server',
     sqlite: 'SQLite',
     googlesheets: 'Google Sheets',
-    nbase: 'NBase'
+    nbase: 'NBase',
+    qdrant: 'Qdrant',
+    chroma: 'Chroma',
+    pinecone: 'Pinecone',
+    weaviate: 'Weaviate',
+    milvus: 'Milvus'
   };
 
   function updateFormAvailability() {
-    const sections = { sqlFields: ['postgres', 'mysql', 'mssql', 'nbase'].includes(currentProvider), sqliteFields: currentProvider === 'sqlite', sheetsFields: currentProvider === 'googlesheets' };
+    const sections = {
+      sqlFields: ['postgres', 'mysql', 'mssql'].includes(currentProvider),
+      sqliteFields: currentProvider === 'sqlite',
+      sheetsFields: currentProvider === 'googlesheets',
+      vectorFields: vectorProviders.includes(currentProvider)
+    };
     Object.entries(sections).forEach(([id, visible]) => $(id).querySelectorAll('input,select').forEach(input => { input.disabled = !!state.busy || activeTab !== 'builder' || !visible; }));
     $('connectionString').disabled = !!state.busy || activeTab !== 'raw';
   }
@@ -45,10 +61,12 @@
     });
 
     // Toggle field visibility
-    const isSql = ['postgres', 'mysql', 'mssql', 'nbase'].includes(provider);
+    const isSql = ['postgres', 'mysql', 'mssql'].includes(provider);
+    const isVector = vectorProviders.includes(provider);
     $('sqlFields').classList.toggle('hidden', !isSql);
     $('sqliteFields').classList.toggle('hidden', provider !== 'sqlite');
     $('sheetsFields').classList.toggle('hidden', provider !== 'googlesheets');
+    $('vectorFields').classList.toggle('hidden', !isVector);
 
     // Toggle provider specific options
     $('postgresOptions').classList.toggle('hidden', provider !== 'postgres');
@@ -60,6 +78,30 @@
       portInput.placeholder = defaultPorts[provider];
       if (!portInput.value || Object.values(defaultPorts).includes(portInput.value)) {
         portInput.value = defaultPorts[provider];
+      }
+    }
+
+    if (isVector) {
+      const vPort = $('fVectorPort');
+      vPort.placeholder = defaultPorts[provider] || '443';
+      if (!vPort.value || Object.values(defaultPorts).includes(vPort.value)) {
+        vPort.value = defaultPorts[provider];
+      }
+      const labels = {
+        nbase: { col: 'Partition / Collection (Optional)', extra: 'Index Method (hnsw / lsh / knn)', host: 'localhost' },
+        qdrant: { col: 'Collection', extra: 'Timeout ms (Optional)', host: 'localhost' },
+        chroma: { col: 'Collection', extra: 'Tenant (Optional)', host: 'localhost' },
+        pinecone: { col: 'Namespace (Optional)', extra: 'Timeout ms (Optional)', host: 'my-index.svc.region.pinecone.io' },
+        weaviate: { col: 'Class Name', extra: 'Tenant (Optional)', host: 'localhost' },
+        milvus: { col: 'Collection', extra: 'Database Name (Optional)', host: 'localhost' },
+      }[provider];
+      if (labels) {
+        $('lVectorCollection').textContent = labels.col;
+        $('lVectorExtra').textContent = labels.extra;
+        $('fVectorHost').placeholder = labels.host;
+      }
+      if (!skipUriUpdate && provider === 'pinecone' && $('fVectorHost').value === 'localhost') {
+        $('fVectorHttps').checked = true;
       }
     }
 
@@ -132,8 +174,47 @@
         if (apiKey) parts.push(`apiKey=${encodeURIComponent(apiKey)}`);
         return parts.length ? `${uri};${parts.join(';')}` : uri;
       }
-      case 'nbase': {
-        return `nbase://${auth}${hostPort}/${encodeURIComponent(db || 'default')}`;
+      case 'nbase':
+      case 'qdrant':
+      case 'chroma':
+      case 'pinecone':
+      case 'weaviate':
+      case 'milvus': {
+        const vHost = ($('fVectorHost').value || 'localhost').trim();
+        const vPort = ($('fVectorPort').value || '').trim();
+        const vHttps = $('fVectorHttps').checked;
+        const vCol = ($('fVectorCollection').value || '').trim();
+        const vExtra = ($('fVectorExtra').value || '').trim();
+        const rawTok = ($('fVectorToken').value || '').trim();
+        const vTok = mask && rawTok ? '••••••••' : rawTok;
+        const vHostPort = vPort ? `${vHost.includes(':') && !vHost.startsWith('[') ? '[' + vHost + ']' : vHost}:${vPort}` : vHost;
+        const base = vHttps ? `${currentProvider}:https://${vHostPort}` : `${currentProvider}://${vHostPort}`;
+        const params = [];
+        if (currentProvider === 'nbase') {
+          if (vExtra) params.push(`method=${encodeURIComponent(vExtra)}`);
+          if (vTok) params.push(`token=${encodeURIComponent(vTok)}`);
+        } else if (currentProvider === 'qdrant') {
+          if (vCol) params.push(`collection=${encodeURIComponent(vCol)}`);
+          if (vExtra) params.push(`timeoutMs=${encodeURIComponent(vExtra)}`);
+          if (vTok) params.push(`apiKey=${encodeURIComponent(vTok)}`);
+        } else if (currentProvider === 'chroma') {
+          if (vCol) params.push(`collection=${encodeURIComponent(vCol)}`);
+          if (vExtra) params.push(`tenant=${encodeURIComponent(vExtra)}`);
+          if (vTok) params.push(`token=${encodeURIComponent(vTok)}`);
+        } else if (currentProvider === 'pinecone') {
+          if (vCol) params.push(`namespace=${encodeURIComponent(vCol)}`);
+          if (vExtra) params.push(`timeoutMs=${encodeURIComponent(vExtra)}`);
+          if (vTok) params.push(`apiKey=${encodeURIComponent(vTok)}`);
+        } else if (currentProvider === 'weaviate') {
+          if (vCol) params.push(`className=${encodeURIComponent(vCol)}`);
+          if (vExtra) params.push(`tenant=${encodeURIComponent(vExtra)}`);
+          if (vTok) params.push(`apiKey=${encodeURIComponent(vTok)}`);
+        } else if (currentProvider === 'milvus') {
+          if (vCol) params.push(`collection=${encodeURIComponent(vCol)}`);
+          if (vExtra) params.push(`dbName=${encodeURIComponent(vExtra)}`);
+          if (vTok) params.push(`token=${encodeURIComponent(vTok)}`);
+        }
+        return params.length ? `${base}?${params.join('&')}` : base;
       }
       default:
         return $('connectionString').value;
@@ -155,7 +236,7 @@
     $('notice').textContent = text; $('notice').classList.remove('hidden'); $('notice').classList.add('error');
   }
   function maskUri(value) {
-    return value.replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@').replace(/((?:password|pwd|privateKey|apiKey|accessToken|refreshToken|oauthClientSecret)=)[^;&]*/gi, '$1••••••••');
+    return value.replace(/(:\/\/[^@/]*:)[^@]*@/g, '$1••••••••@').replace(/((?:password|pwd|privateKey|apiKey|token|accessToken|refreshToken|oauthClientSecret)=)[^;&]*/gi, '$1••••••••');
   }
   function parseUriToBuilder(uri) {
     const cs = uri.trim(); if (!cs) return true;
@@ -178,8 +259,36 @@
         Object.entries(fields).forEach(([key, id]) => { $(id).value = values[key] || ''; });
         return true;
       }
+      const vecMatch = cs.match(/^(nbase|qdrant|chroma|pinecone|weaviate|milvus):(.*)$/i);
+      if (vecMatch) {
+        const vp = vecMatch[1].toLowerCase();
+        let rest = vecMatch[2];
+        let isHttps = false;
+        if (/^https:\/\//i.test(rest)) { isHttps = true; rest = rest.slice('https://'.length); }
+        else if (/^http:\/\//i.test(rest)) { rest = rest.slice('http://'.length); }
+        else if (rest.startsWith('//')) { rest = rest.slice(2); }
+        const parsed = new URL(`http://${rest}`);
+        if (parsed.hash) return false;
+        const allowedVec = {
+          nbase: ['method', 'token'],
+          qdrant: ['collection', 'apiKey', 'timeoutMs'],
+          chroma: ['collection', 'tenant', 'token'],
+          pinecone: ['namespace', 'apiKey', 'timeoutMs'],
+          weaviate: ['className', 'collection', 'tenant', 'apiKey'],
+          milvus: ['collection', 'dbName', 'token'],
+        }[vp];
+        if ([...parsed.searchParams.keys()].some(k => !allowedVec.includes(k))) return false;
+        setProvider(vp, true);
+        $('fVectorHost').value = parsed.hostname;
+        $('fVectorPort').value = parsed.port || (isHttps ? '' : defaultPorts[vp] || '');
+        $('fVectorHttps').checked = isHttps;
+        $('fVectorCollection').value = parsed.searchParams.get('collection') || parsed.searchParams.get('className') || parsed.searchParams.get('namespace') || '';
+        $('fVectorExtra').value = parsed.searchParams.get('method') || parsed.searchParams.get('tenant') || parsed.searchParams.get('dbName') || parsed.searchParams.get('timeoutMs') || '';
+        $('fVectorToken').value = parsed.searchParams.get('apiKey') || parsed.searchParams.get('token') || '';
+        return true;
+      }
       const url = new URL(cs);
-      const provider = { 'postgres:':'postgres', 'postgresql:':'postgres', 'mysql:':'mysql', 'mariadb:':'mysql', 'sqlserver:':'mssql', 'mssql:':'mssql', 'nbase:':'nbase' }[url.protocol];
+      const provider = { 'postgres:':'postgres', 'postgresql:':'postgres', 'mysql:':'mysql', 'mariadb:':'mysql', 'sqlserver:':'mssql', 'mssql:':'mssql' }[url.protocol];
       if (!provider || url.hash) return false;
       const allowed = provider === 'postgres' ? ['sslmode'] : provider === 'mssql' ? ['trustServerCertificate', 'encrypt'] : [];
       if ([...url.searchParams.keys()].some(key => !allowed.includes(key))) return false;
@@ -202,6 +311,7 @@
     $('form').reset();
     editing = profile?.id; draftChanged = false;
     $('fPassword').type = 'password'; $('togglePassword').textContent = '👁';
+    $('fVectorToken').type = 'password'; $('toggleVectorToken').textContent = '👁';
     $('editingHelp').classList.toggle('hidden', !profile);
     $('testBox').classList.add('hidden');
     $('formTitle').textContent = profile
@@ -228,13 +338,7 @@
     document.querySelectorAll('.target-card').forEach(card => card.classList.toggle('active', !!card.querySelector('input:checked')));
 
     if (profile) {
-      const p = profile.provider === 'postgres' ? 'postgres'
-        : profile.provider === 'mysql' ? 'mysql'
-        : profile.provider === 'mssql' ? 'mssql'
-        : profile.provider === 'sqlite' ? 'sqlite'
-        : profile.provider === 'googlesheets' ? 'googlesheets'
-        : profile.provider === 'nbase' ? 'nbase'
-        : 'postgres';
+      const p = providerNames[profile.provider] ? profile.provider : 'postgres';
       setProvider(p, true);
       setTab('raw'); $('previewUri').textContent = 'Saved credentials preserved';
     } else {
@@ -302,10 +406,10 @@
   });
 
   // Builder inputs change
-  ['fHost', 'fPort', 'fDatabase', 'fUser', 'fPassword', 'fSsl', 'fSqlitePath', 'fSpreadsheetId', 'fClientEmail', 'fApiKey', 'fPrivateKey'].forEach(id => {
+  ['fHost', 'fPort', 'fDatabase', 'fUser', 'fPassword', 'fSsl', 'fSqlitePath', 'fSpreadsheetId', 'fClientEmail', 'fApiKey', 'fPrivateKey', 'fVectorHost', 'fVectorPort', 'fVectorCollection', 'fVectorExtra', 'fVectorToken'].forEach(id => {
     $(id)?.addEventListener('input', () => { draftChanged = true; $('testBox').classList.add('hidden'); updateUriFromBuilder(); });
   });
-  ['fTrustServerCertificate', 'fEncrypt'].forEach(id => {
+  ['fTrustServerCertificate', 'fEncrypt', 'fVectorHttps'].forEach(id => {
     $(id)?.addEventListener('change', () => { draftChanged = true; $('testBox').classList.add('hidden'); updateUriFromBuilder(); });
   });
 
@@ -329,12 +433,18 @@
   $('tabBuilder').addEventListener('click', () => setTab('builder'));
   $('tabRaw').addEventListener('click', () => setTab('raw'));
 
-  // Password toggle
+  // Password toggles
   $('togglePassword').addEventListener('click', () => {
     const input = $('fPassword');
     const isPass = input.type === 'password';
     input.type = isPass ? 'text' : 'password';
     $('togglePassword').textContent = isPass ? '🙈' : '👁';
+  });
+  $('toggleVectorToken').addEventListener('click', () => {
+    const input = $('fVectorToken');
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    $('toggleVectorToken').textContent = isPass ? '🙈' : '👁';
   });
 
   // Quick SQLite presets
@@ -427,11 +537,19 @@
   });
   $('resetSettings').addEventListener('click', () => { settingsDirty = false; render(state); $('settingsStatus').textContent = 'Settings restored.'; });
   $('localPreset').addEventListener('click', () => {
-    if (!['postgres', 'mysql', 'mssql', 'nbase'].includes(currentProvider)) setProvider('postgres', true);
-    $('fHost').value = 'localhost'; $('fPort').value = defaultPorts[currentProvider];
-    $('fDatabase').value = {postgres:'postgres',mysql:'mysql',mssql:'master',nbase:'default'}[currentProvider];
-    $('fUser').value = {postgres:'postgres',mysql:'root',mssql:'sa',nbase:'admin'}[currentProvider];
-    $('fPassword').value = ''; draftChanged = true; $('testBox').classList.add('hidden'); updateUriFromBuilder();
+    if (vectorProviders.includes(currentProvider)) {
+      $('fVectorHost').value = 'localhost';
+      $('fVectorPort').value = defaultPorts[currentProvider] || '';
+      $('fVectorHttps').checked = false;
+      $('fVectorToken').value = '';
+    } else {
+      if (!['postgres', 'mysql', 'mssql'].includes(currentProvider)) setProvider('postgres', true);
+      $('fHost').value = 'localhost'; $('fPort').value = defaultPorts[currentProvider];
+      $('fDatabase').value = {postgres:'postgres',mysql:'mysql',mssql:'master'}[currentProvider];
+      $('fUser').value = {postgres:'postgres',mysql:'root',mssql:'sa'}[currentProvider];
+      $('fPassword').value = '';
+    }
+    draftChanged = true; $('testBox').classList.add('hidden'); updateUriFromBuilder();
   });
   $('sqlitePreset').addEventListener('click', () => { draftChanged = true; setProvider('sqlite'); });
 

@@ -128,5 +128,12 @@
       "}"
     ],
     "description": "Insert a generator block"
+  },
+  "vector": {
+    "prefix": "vector",
+    "body": [
+      "${1:embedding} VECTOR(${2:1536})"
+    ],
+    "description": "Define a vector embedding field"
   }
 }

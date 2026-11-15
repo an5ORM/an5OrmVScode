@@ -11,8 +11,13 @@ export function providerOf(value: string): string {
   if (/^(sqlite:|:memory:$)/i.test(cs) || /\.(sqlite|sqlite3|db)$/i.test(cs)) return 'sqlite';
   if (/^(mssql|sqlserver):\/\//i.test(cs) || /(?:^|;)\s*(server|data source)\s*=/i.test(cs)) return 'mssql';
   if (/^googlesheets:\/\//i.test(cs)) return 'googlesheets';
-  if (/^nbase:\/\//i.test(cs)) return 'nbase';
-  throw new Error('Use a SQL Server, PostgreSQL, MySQL, SQLite, Google Sheets or NBase connection string.');
+  if (/^nbase:/i.test(cs)) return 'nbase';
+  if (/^qdrant:/i.test(cs)) return 'qdrant';
+  if (/^chroma:/i.test(cs)) return 'chroma';
+  if (/^pinecone:/i.test(cs)) return 'pinecone';
+  if (/^weaviate:/i.test(cs)) return 'weaviate';
+  if (/^milvus:/i.test(cs)) return 'milvus';
+  throw new Error('Use a SQL Server, PostgreSQL, MySQL, SQLite, Google Sheets, NBase, Qdrant, Chroma, Pinecone, Weaviate, or Milvus connection string.');
 }
 
 /** Metadata belongs to the workspace; connection strings only belong to SecretStorage. */
