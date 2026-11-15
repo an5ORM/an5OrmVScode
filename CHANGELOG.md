@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.4] - 2026-11-15
+
+### Fixed
+- Loaded saved and project `connectionString` values into both the **Connection String URL** input and **Visual Builder** fields when editing an existing connection.
+- Added semicolon-delimited SQL Server URI (`sqlserver://host:port;database=...`) and `file:`/`sqlite://` parsing support when loading or switching to the **Visual Builder**, and scrolled validation notices into view.
+
 ## [1.3.3] - 2026-11-15
 
 ### Added
