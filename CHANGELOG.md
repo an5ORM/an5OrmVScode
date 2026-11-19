@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.6] - 2026-11-19
+
+### Fixed
+- Dereference annotated Git tags in the CI release workflow so `ovsx publish` runs with the target commit SHA instead of skipping Open VSX publication.
+
 ## [1.3.5] - 2026-11-15
 
 ### Added
@@ -84,12 +89,10 @@
 - Refresh live source connections when config/env changes, and isolate environment variables while evaluating project configuration.
 - Run tasks and MCP in the selected project, including nested projects.
 
-
 ## [1.1.1] - 2026-10-03
 
 ### Fixed
 - Use the AN5 wordmark in the Activity Bar, with transparent letters that remain legible when VS Code applies its monochrome icon mask.
-
 
 ## [1.1.0] - 2026-10-03
 
@@ -109,7 +112,6 @@
 - Workspace command execution, argument forwarding and removal of automatic command retries.
 - MCP generation honors language/output and rejects output paths or symlinks outside the workspace.
 - Await asynchronous MCP tests and derive the MCP protocol version from the extension manifest.
-
 
 ## [1.0.6] - 2026-10-03
 

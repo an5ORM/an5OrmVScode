@@ -128,7 +128,13 @@ jobs:
           VERSION: ${{ needs.test.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha')
+          ref_type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.type')
+          ref_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha')
+          if [ "$ref_type" = "tag" ]; then
+            release_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$ref_sha" --jq '.object.sha')
+          else
+            release_sha="$ref_sha"
+          fi
           if [ "$release_sha" != "$GITHUB_SHA" ]; then
             echo "No new release for this commit."
             exit 0
