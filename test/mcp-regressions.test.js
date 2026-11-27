@@ -113,6 +113,20 @@ test('migration script runs in workspace with a single argument delimiter and se
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('an5_migrate runs the published ORM CLI with Node when no npm script exists (issue #3)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-mcp-published-cli-'));
+  const ormDir = path.join(dir, 'node_modules', '@an5', 'orm');
+  fs.mkdirSync(path.join(ormDir, 'dist'), { recursive: true });
+  fs.writeFileSync(path.join(ormDir, 'dist', 'cli.js'), 'console.log("AN5_CLI=" + JSON.stringify(process.argv.slice(2))); console.log("AN5_ENV=" + process.env.DATABASE_URL);');
+  try {
+    const ws = { ...resolveWorkspace(dir), ormDir, connectionString: 'sqlite:published.sqlite' };
+    const tool = createTools(() => ws).find(t => t.name === 'an5_migrate');
+    const result = await tool.handler({ action: 'status', confirm: true });
+    assert.match(result, /AN5_CLI=\["db:migrate:status"\]/);
+    assert.ok(result.includes('AN5_ENV=sqlite:published.sqlite'));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('MCP generation honors language/output and rejects symlink escapes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-mcp-generation-'));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-mcp-outside-'));

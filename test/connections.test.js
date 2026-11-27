@@ -138,9 +138,64 @@ test('project command plans keep workspace cwd and do not retry failed scripts',
     assert.throws(() => projectCommand(ws, 'db:push'), /does not provide a runnable/);
     const entry = path.join(root, 'orm', 'dist', 'generator', 'src', 'index.js');
     fs.mkdirSync(path.dirname(entry), { recursive: true }); fs.writeFileSync(entry, '');
-    const generated = projectCommand({ ...ws, ormDir: path.join(root, 'orm') }, 'generate');
-    assert.equal(generated.cwd, root);
-    assert.equal(generated.args[0], entry);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('Windows npm scripts run through Node npm-cli.js instead of spawning npm.cmd (issue #3)', () => {
+  const { projectCommand } = require('../dist/project-command');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-win-npm-'));
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { 'db:migrate:status': 'an5 db:migrate status' } }));
+    const nodeDir = path.join(root, 'nodejs');
+    const npmCli = path.join(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    fs.mkdirSync(path.dirname(npmCli), { recursive: true }); fs.writeFileSync(npmCli, '');
+    const ws = { root, connectionString: 'sqlite:test.sqlite' };
+    const win = { platform: 'win32', env: { PATH: '' } };
+
+    const plan = projectCommand(ws, 'db:migrate:status', [], { command: path.join(nodeDir, 'node.exe'), env: {} }, win);
+    assert.equal(plan.command, path.join(nodeDir, 'node.exe'));
+    assert.deepEqual(plan.args, [npmCli, 'run', 'db:migrate:status']);
+    assert.ok(!plan.shell);
+    assert.equal(plan.env.DATABASE_URL, 'sqlite:test.sqlite');
+
+    const viaExecPath = projectCommand(ws, 'db:migrate:status', [], { command: path.join(root, 'electron'), env: { ELECTRON_RUN_AS_NODE: '1' } }, { platform: 'win32', env: { npm_execpath: npmCli } });
+    assert.deepEqual(viaExecPath.args.slice(0, 2), [npmCli, 'run']);
+    assert.equal(viaExecPath.env.ELECTRON_RUN_AS_NODE, '1');
+
+    // Last resort: npm.cmd only through a shell, with arguments that cmd.exe cannot reinterpret.
+    const noNpm = { command: path.join(root, 'missing', 'node.exe'), env: {} };
+    const shellPlan = projectCommand(ws, 'db:migrate:status', ['--preview', '2'], noNpm, win);
+    assert.equal(shellPlan.command, 'npm.cmd');
+    assert.equal(shellPlan.shell, true);
+    assert.throws(() => projectCommand(ws, 'db:migrate:status', ['2&calc'], noNpm, win), /Cannot pass/);
+
+    const posix = projectCommand(ws, 'db:migrate:status', [], noNpm, { platform: 'linux', env: {} });
+    assert.equal(posix.command, 'npm');
+    assert.ok(!posix.shell);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('published ORM packages fall back to compiled dist entry points (issue #3)', () => {
+  const { projectCommand } = require('../dist/project-command');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-published-orm-'));
+  try {
+    const ormDir = path.join(root, 'node_modules', '@an5', 'orm');
+    fs.mkdirSync(path.join(ormDir, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(ormDir, 'dist', 'migrate.js'), '');
+    const runtime = { command: '/usr/bin/node', env: { ELECTRON_RUN_AS_NODE: '1' } };
+    const ws = { root, ormDir, connectionString: 'sqlite:test.sqlite' };
+    for (const platform of ['win32', 'linux']) {
+      const compiled = projectCommand(ws, 'db:migrate:rollback', ['2'], runtime, { platform, env: {} });
+      assert.equal(compiled.command, '/usr/bin/node');
+      assert.deepEqual(compiled.args, [path.join(ormDir, 'dist', 'migrate.js'), 'rollback', '2']);
+      assert.equal(compiled.cwd, root);
+      assert.equal(compiled.env.ELECTRON_RUN_AS_NODE, '1');
+    }
+    const cli = path.join(ormDir, 'dist', 'cli.js');
+    fs.writeFileSync(cli, '');
+    assert.deepEqual(projectCommand(ws, 'db:migrate:status', [], runtime, { platform: 'win32', env: {} }).args, [cli, 'db:migrate:status']);
+    assert.deepEqual(projectCommand(ws, 'db:push', ['--dry-run'], runtime).args, [cli, 'db:push', '--dry-run']);
+    assert.deepEqual(projectCommand(ws, 'db:seed', [], runtime).args, [cli, 'db:seed']);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

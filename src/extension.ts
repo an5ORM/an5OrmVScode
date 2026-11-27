@@ -293,7 +293,7 @@ module.exports = {
       const active = await connections.environment(folder);
       const plan = projectCommand({ ...ws, connectionString: active.DATABASE_URL || ws.connectionString }, defaultNpmScript, [], nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')));
       const options = { cwd: plan.cwd, env: plan.env };
-      const execution = process.platform === 'win32' && plan.command === 'npm.cmd'
+      const execution = plan.shell
         ? new vscode.ShellExecution(plan.command, plan.args, options)
         : new vscode.ProcessExecution(plan.command, plan.args, options);
       const task = new vscode.Task({ type: 'an5', action: cmdName }, vscode.workspace.getWorkspaceFolder(folder.uri) || folder, `AN5: ${cmdName}`, 'AN5 ORM', execution);

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.7] - 2026-11-27
+
+### Fixed
+- Fixed MCP actions (`an5_migrate`, `an5_push_schema`, `an5_preview_push`, `an5_pull_schema`, `an5_seed`) failing on Windows with `spawn EINVAL` (#3). Workspace npm scripts now run through Node with npm's `npm-cli.js` instead of starting `npm.cmd` without a shell. If npm cannot be located, the extension falls back to `npm.cmd` through the shell and accepts only arguments that `cmd.exe` cannot reinterpret.
+- When the workspace has no matching npm script, published `@an5/orm` packages are now run through their compiled CLI (`dist/cli.js`, then `dist/<command>.js`) with the configured Node runtime. Previously only TypeScript entry points (`migrate.ts`, `push.ts`, …) were recognized, which published packages do not ship. ORM source checkouts still use `tsx`.
+- The Generate/Push/Pull commands use a shell only for the `npm.cmd` fallback, so Windows runs them as direct Node processes when npm is available.
+
 ## [1.3.6] - 2026-11-19
 
 ### Fixed

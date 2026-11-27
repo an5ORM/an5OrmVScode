@@ -34,7 +34,8 @@ function runOrmScript(ws: Workspace, script: string, args: string[] = []): Promi
     execFile(
       plan.command,
       plan.args,
-      { cwd: plan.cwd, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ...plan.env } },
+      // shell is only set for the Windows npm.cmd fallback, whose arguments projectCommand validated
+      { cwd: plan.cwd, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, ...plan.env }, shell: plan.shell === true, windowsHide: true },
       (err, stdout, stderr) => {
         const output = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
         if (err) {
