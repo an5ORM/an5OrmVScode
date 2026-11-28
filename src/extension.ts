@@ -14,9 +14,6 @@ import {
   stdioSpec,
 } from './mcp/definition';
 
-/** Id must match `contributes.mcpServerDefinitionProviders[].id` in package.json. */
-const MCP_PROVIDER_ID = 'an5McpProvider';
-
 interface FieldDef {
   name: string;
   type: string;
@@ -340,101 +337,12 @@ module.exports = {
   // The server is a stdio MCP server shipped with this extension. It is started
   // as a child process with a workspace folder as its working directory so it
   // discovers the project's schema, @an5/orm install and DATABASE_URL.
-  //
-  // Registration needs no folder: the provider is registered unconditionally and
-  // the folders are read when VS Code asks, so a server shows up in a window that
-  // has none open yet.
-  registerMcpServer(context, connections);
-
   context.subscriptions.push(
     vscode.commands.registerCommand('an5.mcp.install', async (folder?: vscode.WorkspaceFolder) => {
       await installMcpServer(context, folder || await connections.pickFolder());
     }),
     vscode.commands.registerCommand('an5.mcp.showConfig', async () => {
       await showMcpConfig(context);
-    }),
-  );
-}
-
-/**
- * Registers the AN5 MCP server with VS Code so agentic clients discover it.
- *
- * The provider is the automatic path: it needs VS Code 1.101+, which is what
- * `engines.vscode` already requires. On an older build — or an editor like Cursor
- * and VSCodium that may predate it — `registerMcpServerDefinitionProvider` is
- * absent, the registration is skipped, and `AN5: Install MCP Server` is the way in
- * because it writes the config file itself.
- */
-function registerMcpServer(context: vscode.ExtensionContext, connections: ConnectionUi): void {
-  // Present from VS Code 1.101. The guard keeps the extension loadable on builds
-  // where the API is missing, which is also what happens on a host that shims the
-  // namespace.
-  const register = vscode.lm?.registerMcpServerDefinitionProvider;
-  if (typeof register !== 'function') {
-    return;
-  }
-
-  const emitter = new vscode.EventEmitter<void>();
-  context.subscriptions.push(emitter);
-
-  context.subscriptions.push(connections.onDidChange(() => emitter.fire()));
-
-  // VS Code asks again when this fires, so a folder opened or closed after
-  // activation is reflected instead of staying stale.
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeWorkspaceFolders(() => emitter.fire()),
-  );
-
-  context.subscriptions.push(
-    register(MCP_PROVIDER_ID, {
-      onDidChangeMcpServerDefinitions: emitter.event,
-      provideMcpServerDefinitions: async (token) => {
-        const folders = connections.projects();
-        if (!vscode.workspace.isTrusted || !folders || folders.length === 0) return [];
-
-        const extensionPath = context.extensionUri.fsPath;
-        const version = extensionVersion(context);
-
-        return folders.map((folder) => {
-          const spec = stdioSpec({
-            extensionPath,
-            // The node running this extension host, not `'node'` from a PATH the
-            // server would not inherit.
-            nodePath: nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')).command,
-            env: nodeRuntime(vscode.workspace.getConfiguration('an5', folder.uri).get<string>('nodePath')).env,
-            cwd: folder.uri.fsPath,
-            version,
-          });
-
-          // Positional, matching `McpStdioServerDefinition`'s signature. `cwd` is
-          // assigned separately because the constructor does not take it.
-          const definition = new vscode.McpStdioServerDefinition(
-            folders.length > 1 ? `${spec.label} · ${folder.name}` : spec.label,
-            spec.command,
-            spec.args,
-            spec.env || {},
-            spec.version,
-          );
-          definition.cwd = folder.uri;
-
-          if (token.isCancellationRequested) {
-            throw new vscode.CancellationError();
-          }
-          return definition;
-        });
-      },
-      resolveMcpServerDefinition: async (definition) => {
-        if (!vscode.workspace.isTrusted) throw new Error('Trust this workspace before launching AN5 MCP.');
-        if (definition instanceof vscode.McpStdioServerDefinition && definition.cwd) {
-          const folder = connections.projects().find(f => f.uri.toString() === definition.cwd!.toString()) || vscode.workspace.getWorkspaceFolder(definition.cwd);
-          if (folder) {
-            const env = { ...definition.env };
-            delete env.DATABASE_URL;
-            definition.env = { ...env, ...await connections.environment(folder) };
-          }
-        }
-        return definition;
-      },
     }),
   );
 }
@@ -471,12 +379,7 @@ async function installMcpServer(context: vscode.ExtensionContext, selectedFolder
     {
       label: '.mcp.json (workspace)',
       root: '.mcp.json',
-      description: 'Portable, shared with other agent tools',
-    },
-    {
-      label: '.vscode/mcp.json (workspace)',
-      root: '.vscode/mcp.json',
-      description: 'VS Code format',
+      description: 'Native Copilot format, portable and shared with the workspace',
     },
   ];
 
@@ -499,7 +402,7 @@ async function installMcpServer(context: vscode.ExtensionContext, selectedFolder
   const current = await readFileIfExists(target);
   let merged;
   try {
-    merged = mergeServerEntry(current, MCP_SERVER_KEY, mcpJsonEntry(spec), picked.root);
+    merged = mergeServerEntry(current, MCP_SERVER_KEY, mcpJsonEntry(spec, picked.root), picked.root);
   } catch (error) {
     const message = error instanceof McpJsonError ? error.message : String(error);
     const open = await vscode.window.showErrorMessage(`AN5: could not update ${relative} — ${message}`, 'Open File');
@@ -543,7 +446,7 @@ async function showMcpConfig(context: vscode.ExtensionContext): Promise<void> {
 
   const document = await vscode.workspace.openTextDocument({
     language: 'json',
-    content: `${JSON.stringify({ servers: { [MCP_SERVER_KEY]: mcpJsonEntry(spec) } }, null, 2)}\n`,
+    content: `${JSON.stringify({ mcpServers: { [MCP_SERVER_KEY]: mcpJsonEntry(spec, '.mcp.json') } }, null, 2)}\n`,
   });
   await vscode.window.showTextDocument(document);
 }

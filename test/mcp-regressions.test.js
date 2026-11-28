@@ -6,6 +6,7 @@ const path = require('node:path');
 const { resolveWorkspace } = require('../dist/mcp/workspace');
 const { createTools } = require('../dist/mcp/tools');
 const { assertSelectQuery } = require('../dist/mcp/select-query');
+const { linkOrCopy } = require('./symlink-helper');
 
 test('SELECT guard distinguishes SQL from quoted text and comments', () => {
   for (const sql of ["SELECT ';DELETE' AS value; -- end", '/* comment */ SELECT 1', 'SELECT $$; DELETE$$', 'SELECT [into] FROM [update]']) assert.doesNotThrow(() => assertSelectQuery(sql));
@@ -20,13 +21,14 @@ test('MCP uses supplied workspace, blocks sibling prefixes and symlink escapes',
   fs.mkdirSync(path.join(root, 'an5Schema'));
   fs.writeFileSync(path.join(root, 'an5Schema', 'model.an5'), 'model WorkspaceOnly {\n id INT @id\n}\n');
   fs.writeFileSync(path.join(sibling, 'outside.an5'), 'outside');
-  fs.symlinkSync(path.join(sibling, 'outside.an5'), path.join(root, 'escape.an5'));
+  const escapeLinked = linkOrCopy(path.join(sibling, 'outside.an5'), path.join(root, 'escape.an5'));
   fs.writeFileSync(path.join(root, '.env'), 'PRIVATE=value');
   const tools = Object.fromEntries(createTools(() => resolveWorkspace(root)).map(t => [t.name, t]));
   try {
     const result = JSON.parse(await tools.an5_list_models.handler({}));
     assert.equal(result.models[0].name, 'WorkspaceOnly');
-    for (const file of [path.join(sibling, 'outside.an5'), 'escape.an5', '.env']) await assert.rejects(tools.an5_read_schema_file.handler({ file }));
+    for (const file of [path.join(sibling, 'outside.an5'), '.env']) await assert.rejects(tools.an5_read_schema_file.handler({ file }));
+    if (escapeLinked) await assert.rejects(tools.an5_read_schema_file.handler({ file: 'escape.an5' }));
     assert.match(await tools.an5_read_schema_file.handler({ file: 'an5Schema/model.an5' }), /WorkspaceOnly/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
@@ -39,7 +41,7 @@ test('live table description works with SQLite and no schema files', async () =>
   const child = path.join(dir, 'nested'); fs.mkdirSync(child);
   const ws = { ...resolveWorkspace(child), connectionString, ormDir: undefined };
   fs.mkdirSync(path.join(dir, 'node_modules', '@an5'), { recursive: true });
-  fs.symlinkSync(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(dir, 'node_modules', '@an5', 'adapters'), 'dir');
+  linkOrCopy(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(dir, 'node_modules', '@an5', 'adapters'), 'junction');
   try {
     await adapter.exec('CREATE TABLE custom (key INTEGER PRIMARY KEY, value TEXT DEFAULT \'x\')');
     const tool = createTools(() => ws).find(t => t.name === 'an5_describe_table');
@@ -133,7 +135,7 @@ test('MCP generation honors language/output and rejects symlink escapes', async 
   fs.mkdirSync(path.join(dir, 'an5Schema'));
   fs.writeFileSync(path.join(dir, 'an5Schema', 'model.an5'), 'model Example {\n id INTEGER @id\n value TEXT\n}');
   fs.mkdirSync(path.join(dir, 'untouched')); fs.writeFileSync(path.join(dir, 'untouched', 'keep.ts'), 'do not modify');
-  fs.symlinkSync(outside, path.join(dir, 'escape'), 'dir');
+  const escapeLinked = linkOrCopy(outside, path.join(dir, 'escape'), 'junction');
   const ws = { ...resolveWorkspace(dir), ormDir: path.dirname(require.resolve('@an5/orm/package.json')), connectionString: 'sqlite::memory:', config: { outputs: { typescript: { outputDir: 'untouched', metadataFile: 'untouched/metadata.ts' } } } };
   const tool = createTools(() => ws).find(t => t.name === 'an5_generate_client');
   try {
@@ -142,8 +144,10 @@ test('MCP generation honors language/output and rejects symlink escapes', async 
     assert.ok(fs.existsSync(path.join(dir, 'generated/python/an5_metadata.py')));
     assert.equal(fs.readFileSync(path.join(dir, 'untouched/keep.ts'), 'utf8'), 'do not modify');
     assert.equal(fs.readdirSync(path.join(dir, 'untouched')).length, 1);
-    await assert.rejects(tool.handler({ language: 'typescript', outputDir: 'escape/generated', confirm: true }), /symlinks/);
-    assert.equal(fs.readdirSync(outside).length, 0);
+    if (escapeLinked) {
+      await assert.rejects(tool.handler({ language: 'typescript', outputDir: 'escape/generated', confirm: true }), /symlinks/);
+      assert.equal(fs.readdirSync(outside).length, 0);
+    }
     await assert.rejects(tool.handler({ language: 'rust', outputDir: '../escape', confirm: true }), /inside the workspace/);
     await assert.rejects(tool.handler({ language: 'python', confirm: false }), /confirm: true/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(outside, { recursive: true, force: true }); }

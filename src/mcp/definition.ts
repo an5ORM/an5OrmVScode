@@ -35,6 +35,7 @@ export interface McpJsonEntry {
   args: string[];
   env?: Record<string, string>;
   cwd?: string;
+  tools?: string[];
 }
 
 export interface SpecOptions {
@@ -84,10 +85,11 @@ export function stdioSpec(options: SpecOptions): StdioServerSpec {
 }
 
 /** The `mcp.json` entry for a spec. `cwd` is omitted rather than emitted empty. */
-export function mcpJsonEntry(spec: StdioServerSpec): McpJsonEntry {
+export function mcpJsonEntry(spec: StdioServerSpec, root: McpJsonRoot = '.mcp.json'): McpJsonEntry {
   const entry: McpJsonEntry = { type: 'stdio', command: spec.command, args: spec.args };
   if (spec.env) entry.env = { ...spec.env };
   if (spec.cwd) entry.cwd = spec.cwd;
+  if (root === '.mcp.json') entry.tools = ['*'];
   return entry;
 }
 

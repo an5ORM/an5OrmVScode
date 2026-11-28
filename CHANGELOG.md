@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.9] - 2026-11-28
+
+### Changed
+- Migrated AN5 MCP delivery from extension-provided forwarding to native portable `.mcp.json` configuration. This removes the `Partially supported`/Migrations warning for the AN5 provider and keeps the server compatible with Copilot harness sessions.
+
+### Fixed
+- Made MCP, connection, and agent-skill regression tests portable on Windows when symbolic-link creation is restricted.
+
+## [1.3.8] - 2026-11-28
+
+### Fixed
+- Updated MCP installation for the Copilot harness. Workspace configuration now writes portable `.mcp.json` with `tools: ["*"]` and no longer offers deprecated `.vscode/mcp.json` as a new destination.
+- Updated the resolved MCP configuration preview to use the native `mcpServers` format.
+
 ## [1.3.7] - 2026-11-27
 
 ### Fixed

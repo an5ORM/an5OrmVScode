@@ -42,38 +42,11 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 
 
 console.log('\nManifest:');
 
-test('contributes an MCP server definition provider', () => {
-  const providers = packageJson.contributes.mcpServerDefinitionProviders;
-  assert.ok(Array.isArray(providers) && providers.length > 0, 'Expected mcpServerDefinitionProviders');
-  assert.strictEqual(providers[0].id, 'an5McpProvider');
-});
-
-test('the provider id matches the one registered in the extension', () => {
+test('uses native Copilot MCP configuration instead of an extension provider', () => {
+  assert.strictEqual(packageJson.contributes.mcpServerDefinitionProviders, undefined);
   const source = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
-  assert.ok(
-    source.includes("MCP_PROVIDER_ID = 'an5McpProvider'"),
-    'Extension must register the provider id declared in package.json',
-  );
-  assert.ok(source.includes('registerMcpServerDefinitionProvider'), 'Expected provider registration');
-  assert.ok(source.includes('McpStdioServerDefinition'), 'Expected a stdio server definition');
-});
-
-test('builds the stdio definition with positional arguments, not an options object', () => {
-  // This is the mistake that kept the server from ever appearing: the API is
-  // `constructor(label, command, args, env, version)`, and an options object left
-  // `label` holding an object and `command` undefined. VS Code validated that
-  // inside a `setTimeout`, so the throw was swallowed and nothing surfaced. An
-  // options object here is the bug, so it is asserted against on the compiled
-  // output rather than described in a comment.
-  const compiled = fs.readFileSync(path.join(root, 'dist', 'extension.js'), 'utf8');
-  assert.ok(
-    !/new\s+(?:vscode\.)?McpStdioServerDefinition\s*\(\s*\{/.test(compiled),
-    'McpStdioServerDefinition takes positional arguments, not an options object',
-  );
-  assert.ok(
-    /new\s+(?:vscode\.)?McpStdioServerDefinition\s*\(\s*(?:folders\.length > 1 \? `\$\{spec\.label\} · \$\{folder\.name\}` : )?spec\.label\s*,/.test(compiled),
-    'Expected the label to be passed as the first positional argument',
-  );
+  assert.ok(!source.includes('registerMcpServerDefinitionProvider'));
+  assert.ok(!source.includes('McpStdioServerDefinition'));
 });
 
 test('derives the server version from the manifest instead of repeating it', () => {
@@ -120,9 +93,6 @@ test('relies on inferred activation events for its commands', () => {
   assert.ok(!packageJson.activationEvents.some((e) => e.startsWith('onCommand:')));
 });
 
-test('requires a VS Code version that ships the MCP API', () => {
-  assert.strictEqual(packageJson.engines.vscode, '^1.101.0');
-});
 
 test('ships the compiled MCP server', () => {
   for (const file of ['server.js', 'protocol.js', 'tools.js', 'workspace.js', 'schema-reader.js', 'fallback-parser.js']) {
@@ -185,6 +155,11 @@ test('omits the optional parts instead of emitting empty ones', () => {
 test('keeps each config format under the property it is read from', () => {
   assert.strictEqual(definition.serversKey('.mcp.json'), 'mcpServers');
   assert.strictEqual(definition.serversKey('.vscode/mcp.json'), 'servers');
+});
+
+test('portable config declares the Copilot tools filter', () => {
+  const spec = definition.stdioSpec({ extensionPath, nodePath, cwd: projectDir });
+  assert.deepStrictEqual(definition.mcpJsonEntry(spec, '.mcp.json').tools, ['*']);
 });
 
 console.log('\nConfig merge:');

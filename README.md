@@ -81,16 +81,12 @@ The extension ships a [Model Context Protocol](https://modelcontextprotocol.io)
 server, so agentic clients can inspect your AN5 schema, run read-only queries
 and drive schema operations instead of guessing at your data model.
 
-On VS Code 1.101 or newer the server registers itself: open `MCP: List Servers`
-and start **AN5 ORM**. Nothing to copy, and no config file to edit.
-
-If it does not appear — an older build, or an editor such as Cursor or VSCodium
-that predates the API — run **AN5: Install MCP Server** from the Command Palette
-(or click the status bar item and pick it). It writes the entry into the open
-workspace for you, with the extension path already resolved:
-
-- `.mcp.json` — the portable format, read by VS Code and other agent tools
-- `.vscode/mcp.json` — the VS Code format
+Run **AN5: Install MCP Server** to create the native Copilot/agent-tool configuration.
+It writes a portable entry to `.mcp.json` at the workspace root, with
+`mcpServers` and `tools: ["*"]`. This is the native format for the Copilot
+harness and is shared only if the workspace file is committed. Legacy
+`.vscode/mcp.json` entries remain supported for migration and existing clients,
+but are no longer offered as a new destination.
 
 Your other servers and the rest of the file are left alone, running it twice
 changes nothing, and a file it cannot parse is reported rather than overwritten.

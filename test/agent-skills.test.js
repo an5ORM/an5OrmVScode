@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {syncAgentSkills} = require('../dist/agent-skills');
+const { linkOrCopy } = require('./symlink-helper');
 const extension = path.resolve(__dirname, '..');
 function fixture(callback) { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-skills-')); try { callback(root); } finally {fs.rmSync(root, {recursive:true, force:true});} }
 test('sync preserves user conventions, omits credentials and refreshes project scripts idempotently', () => fixture(root => {
@@ -30,7 +31,8 @@ test('conflicting user skill and malformed markers are preserved without partial
 test('nested project stays isolated and symlink targets are never written', () => fixture(root => {
   const child=path.join(root,'child');fs.mkdirSync(child);syncAgentSkills(child,extension);
   assert.ok(!fs.existsSync(path.join(root,'AGENTS.md')));
-  fs.symlinkSync(child,path.join(root,'.agents'),'dir');
+  const linked = linkOrCopy(child,path.join(root,'.agents'),'junction');
+  if (!linked) return;
   assert.throws(()=>syncAgentSkills(root,extension), /symbolic links/);
   assert.ok(!fs.existsSync(path.join(child,'skills')));
 }));

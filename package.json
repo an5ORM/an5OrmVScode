@@ -2,7 +2,7 @@
   "name": "an5-orm-vscode",
   "displayName": "AN5 ORM Schema Tooling",
   "description": "AN5 ORM workspace, secure database connections, schema tooling and MCP integration.",
-  "version": "1.3.7",
+  "version": "1.3.9",
   "publisher": "an5orm",
   "author": "an5ORM",
   "homepage": "https://github.com/an5ORM/an5OrmVScode",
@@ -150,12 +150,6 @@
         "command": "an5.agentSkills.syncAllIdes",
         "title": "AN5: Sync All AI IDE Rules (Cursor, Copilot, Claude, Agents)",
         "category": "AN5"
-      }
-    ],
-    "mcpServerDefinitionProviders": [
-      {
-        "id": "an5McpProvider",
-        "label": "AN5 ORM"
       }
     ],
     "viewsContainers": {

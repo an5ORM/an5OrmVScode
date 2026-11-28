@@ -8,6 +8,7 @@ const { normalizeConnectionString, testConnection } = require('../dist/connectio
 const { nodeRuntime } = require('../dist/node-runtime');
 const { resolveWorkspace } = require('../dist/mcp/workspace');
 const { stdioSpec, mcpJsonEntry } = require('../dist/mcp/definition');
+const { linkOrCopy } = require('./symlink-helper');
 function memory() {
   const states = new Map(), secrets = new Map();
   const state = { get: (k, fallback) => states.get(k) || fallback, update: async (k, v) => states.set(k, v) };
@@ -66,7 +67,7 @@ test('provider detection and relative SQLite paths match supported adapter forma
   assert.equal(providerOf('pinecone:https://my-index.svc.region.pinecone.io?apiKey=pcsk'), 'pinecone');
   assert.equal(providerOf('weaviate://localhost:8080?className=Article'), 'weaviate');
   assert.equal(providerOf('milvus://localhost:19530?collection=articles'), 'milvus');
-  assert.equal(normalizeConnectionString('/tmp/project', 'sqlite:./test.sqlite'), 'sqlite:/tmp/project/test.sqlite');
+  assert.equal(normalizeConnectionString('/tmp/project', 'sqlite:./test.sqlite'), `sqlite:${path.resolve('/tmp/project', 'test.sqlite')}`);
   assert.equal(normalizeConnectionString('/tmp/project', 'sqlite::memory:'), ':memory:');
 });
 
@@ -97,7 +98,7 @@ test('Electron fallback supplies Node mode in both MCP definitions and installed
 test('isolated SQLite connection probe succeeds with project adapters', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'an5-probe-'));
   fs.mkdirSync(path.join(root, 'node_modules', '@an5'), { recursive: true });
-  fs.symlinkSync(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(root, 'node_modules', '@an5', 'adapters'), 'dir');
+  linkOrCopy(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(root, 'node_modules', '@an5', 'adapters'), 'junction');
   try {
     const result = await testConnection(root, 'sqlite:./probe.sqlite');
     assert.equal(result.provider, 'sqlite');
@@ -114,7 +115,7 @@ test('connection probe resolves transitive @an5/adapters via @an5/orm (pnpm virt
     fs.mkdirSync(path.join(ormDir, 'node_modules', '@an5'), { recursive: true });
     fs.writeFileSync(path.join(ormDir, 'package.json'), JSON.stringify({ name: '@an5/orm', version: '1.0.0', main: 'index.js' }));
     fs.writeFileSync(path.join(ormDir, 'index.js'), 'module.exports = {};');
-    fs.symlinkSync(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(ormDir, 'node_modules', '@an5', 'adapters'), 'dir');
+    linkOrCopy(path.dirname(path.dirname(require.resolve('@an5/adapters'))), path.join(ormDir, 'node_modules', '@an5', 'adapters'), 'junction');
 
     const { createRequire } = require('module');
     assert.throws(() => createRequire(path.join(root, 'package.json')).resolve('@an5/adapters'));
@@ -133,7 +134,12 @@ test('project command plans keep workspace cwd and do not retry failed scripts',
     const ws = { root, ormDir: '/dependency/orm', connectionString: 'sqlite:test.sqlite' };
     const plan = projectCommand(ws, 'db:migrate:rollback', ['2', '--preview']);
     assert.equal(plan.cwd, root);
-    assert.deepEqual(plan.args, ['run', 'db:migrate:rollback', '--', '2', '--preview']);
+    if (process.platform === 'win32') {
+      assert.deepEqual(plan.args.slice(-5), ['run', 'db:migrate:rollback', '--', '2', '--preview']);
+      assert.match(plan.args[0], /npm-cli\.js$/);
+    } else {
+      assert.deepEqual(plan.args, ['run', 'db:migrate:rollback', '--', '2', '--preview']);
+    }
     assert.equal(plan.env.DATABASE_URL, 'sqlite:test.sqlite');
     assert.throws(() => projectCommand(ws, 'db:push'), /does not provide a runnable/);
     const entry = path.join(root, 'orm', 'dist', 'generator', 'src', 'index.js');
@@ -241,7 +247,7 @@ test('configured subprojects are discovered without dependency folders or symlin
       const full = path.join(dir, rel); fs.mkdirSync(full, { recursive: true });
       fs.writeFileSync(path.join(full, 'an5Orm.config.js'), 'throw Error("Discovery must not execute config")');
     }
-    fs.symlinkSync(path.join(dir, 'external'), path.join(dir, 'linked'), 'dir');
+    linkOrCopy(path.join(dir, 'external'), path.join(dir, 'linked'), 'junction');
     const roots = projectRoots(dir);
     assert.ok(roots.includes(dir)); assert.ok(roots.includes(path.join(dir, 'apps/example')));
     assert.ok(!roots.includes(path.join(dir, 'node_modules/ignored')));
